@@ -6,5 +6,5 @@
 - Лялин Дмитрий (tg@dslyalin, GitHub - dslialin)
 - Смиян Юлия (tg@kusyaku, GitHub - Difraya)
 - Хибин Вадим (tg@VadimKhibin, GitHub - 1vad1mka)
-- Вороник Виталий tg@Vorvit, GitHub - vorvit
-- Бурлова Альбина (tg@planqua GitHub - AlbinaBurlova) (куратор проекта)
+- Вороник Виталий (tg@Vorvit, GitHub - vorvit)
+- Бурлова Альбина (tg@planqua, GitHub - AlbinaBurlova) (куратор проекта)
