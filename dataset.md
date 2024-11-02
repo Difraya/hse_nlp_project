@@ -1,7 +1,9 @@
-Датасет доступен по [ссылке](https://disk.yandex.ru/d/LI8ayJNb-4jNcg)
+Датасет доступен по [ссылке]([https://www.kaggle.com/datasets/vorvit/books-eng])
 
-### Описание данных:
-   - author: фамилия и инициалы автора
-   - title: название произведения
-   - text: полный текст произведения
-
+### Датасет на kaggle.com, на 02.11.24 содержит файлы:
+   - books_f.pq - содержит тексты книг спарсенные с сайта
+   - books2.pq
+   - result.pq
+   - top100.pq
+   - b101.pq
+   - AAA.xlsx
