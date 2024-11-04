@@ -1,10 +1,4 @@
-Данные были получены при помощи парсинга текстов книг с сайтов gutenberg.org и loyalbooks.com.
-
-Блокноты с кодом для парсинга можно посмотреть в папке [data_mining/parser](https://github.com/Difraya/hse_nlp_project/tree/main/data_mining/parsers).
-
-Предобработка полученных данных была выполнена в  блокноте [datasets.ipynb](https://github.com/Difraya/hse_nlp_project/blob/main/data_mining/datasets.ipynb).
-
-Полученный итоговый датасет доступен по [ссылке](https://www.kaggle.com/datasets/vorvit/books-eng)
+Данные были получены при помощи парсинга текстов книг с сайтов gutenberg.org и loyalbooks.com. <br> Блокноты с кодом для парсинга можно посмотреть в папке [data_mining/parser](https://github.com/Difraya/hse_nlp_project/tree/main/data_mining/parsers). <br> Предобработка полученных данных была выполнена в  блокноте [datasets.ipynb](https://github.com/Difraya/hse_nlp_project/blob/main/data_mining/datasets.ipynb). <br> Полученный итоговый датасет доступен по [ссылке](https://www.kaggle.com/datasets/vorvit/books-eng)
 
 ### Датасет на kaggle.com, на 02.11.24 содержит файлы:
    - books_f.pq - содержит тексты книг спарсенные с сайта gutenberg.org
