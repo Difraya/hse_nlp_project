@@ -1,0 +1,5 @@
+streamlit~=1.41.1
+requests~=2.32.3
+json~=2.0.9
+re~=2.2.1
+nltk~=3.9.1
