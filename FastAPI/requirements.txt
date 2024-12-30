@@ -9,3 +9,4 @@ python-multipart==0.0.20
 pyarrow==18.1.0
 requests==2.32.3
 aiohttp==3.11.11
+kaggle==1.6.17
