@@ -1,22 +1,15 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query, Body
 from contextlib import asynccontextmanager
 from concurrent.futures import ProcessPoolExecutor
-import concurrent.futures
 from http import HTTPStatus
 from pydantic import BaseModel, Field
 from typing import List, Dict, Union, Any, Optional, Annotated
-import pyarrow.parquet as pq
 import joblib
-import requests
 import uvicorn
 import pandas as pd
-import numpy as np
 import json
 import time
 import asyncio
-from sklearn.model_selection import learning_curve, train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-import copy
 import io
 from ngram_naive_bayes import model2
 from tfidf_log_reg_standardized import model3
@@ -59,12 +52,6 @@ SGDClassifier(max_iter=10000, tol=1e-3))''',
     }
 }
 
-# # Список моделей для обучения
-# refitted_models_list = {}
-
-# # Объединяем словари для упрощения проверки
-# all_models_list = {**initial_models_list, **refitted_models_list}
-
 # Конекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> None:
@@ -75,6 +62,7 @@ async def lifespan(app: FastAPI) -> None:
     print("Model loaded.")
     yield
     print("Cleaning up...")
+
 
 # Регистрируем lifespan для приложения
 app.router.lifespan_context = lifespan
@@ -87,47 +75,45 @@ class ModelRequestBase(BaseModel):
 class PredictItemRequest(ModelRequestBase):
     text: str
 
+
 class PredictItemResponse(BaseModel):
     id: str
     author: str
 
+
 class PredictItemsRequest(ModelRequestBase):
     texts: Dict[str, str]
+
 
 class PredictItemsResponse(BaseModel):
     response: Dict[str, str]
 
+
 class PredictItemsProbaResponse(BaseModel):
     response: Dict[str, Dict[str, float]]
 
-class RefitModelRequest(BaseModel):
-    # hyperparameters: Dict[str, Any] = Field(default_factory=dict)
-    hyperparameters: Optional[Dict[str, Any]] = None or {}
-
-# class RefitModelResponse(BaseModel):
-#     message: str
-#     metrics: Dict[str, float]
-#     train_sizes: List[Union[float, int]]
-#     train_scores: List[List[Union[float, int]]]
-#     test_scores: List[List[Union[float, int]]]
 
 # Функция для получения модели по её идентификатору
 def get_model(model_id: str) -> Dict[str, Any]:
     if model_id in initial_models_list:
         return initial_models_list[model_id]
-    if model_id in refitted_models_list:
-        return refitted_models_list[model_id]
+
     raise HTTPException(status_code=400, detail=f'Model with id "{model_id}" doesn\'t exist!')
+
 
 # Асинхронная функция для предсказания одного элемента
 async def predict(model: Any, text: str) -> str:
     text_series = pd.Series([text])
+
     return model.predict(text_series)[0]
+
 
 # Асинхронная функция для предсказания вероятностей
 async def predict_proba(model: Any, text: str) -> List[float]:
     text_series = pd.Series([text])
+
     return model.predict_proba(text_series)[0]
+
 
 # Эндпоинт для получения списка моделей
 @app.get('/ModelsList', response_model=List[Dict[str, str]])
@@ -139,7 +125,9 @@ async def models_list() -> List[Dict[str, str]]:
             'description': model_info.get('description', 'No description available'),
         }
         models_info.append(info)
+
     return models_info
+
 
 # Эндпоинт для установки активной модели
 @app.post("/setModel", status_code=HTTPStatus.OK)
@@ -151,7 +139,9 @@ async def set_model(
     if id not in initial_models_list:
         raise HTTPException(status_code=400, detail=f'Model with id "{id}" doesn\'t exist!')
     active_model_id = id
+
     return {"message": f"Active model set to '{active_model_id}'"}
+
 
 # Эндпоинт для предсказания одного элемента
 @app.post("/PredictItem", response_model=PredictItemResponse, status_code=HTTPStatus.OK)
@@ -159,7 +149,9 @@ async def predict_item(request: PredictItemRequest) -> PredictItemResponse:
     model_id = active_model_id
     model = get_model(model_id)
     author_prediction = await predict(model['model'], request.text)
+
     return PredictItemResponse(id=model_id, author=author_prediction)
+
 
 # Эндпоинт для предсказания одного элемента из файла
 @app.post("/PredictItemFile", response_model=PredictItemResponse, status_code=HTTPStatus.OK)
@@ -169,7 +161,9 @@ async def predict_item_file(request: UploadFile = File()) -> PredictItemResponse
     model_id = active_model_id
     model = get_model(model_id)
     author_prediction = await predict(model['model'], text_data)
+
     return PredictItemResponse(id=model_id, author=author_prediction)
+
 
 # Эндпоинт для предсказания вероятностей одного элемента
 @app.post('/PredictItemProba', response_model=Dict[str, float], status_code=HTTPStatus.OK)
@@ -178,7 +172,9 @@ async def predict_item_proba(request: PredictItemRequest) -> Dict[str, float]:
     model = get_model(model_id)
     probabilities = await predict_proba(model['model'], request.text)
     author_probas = dict(zip(model['model'].classes_, probabilities))
+
     return dict(sorted(author_probas.items(), key=lambda item: item[1], reverse=True))
+
 
 # Эндпоинт для предсказания вероятностей одного элемента из файла
 @app.post('/PredictItemProbaFile', response_model=Dict[str, float], status_code=HTTPStatus.OK)
@@ -188,7 +184,9 @@ async def predict_item_proba_file(request: UploadFile = File()) -> Dict[str, flo
     model = get_model(model_id)
     probabilities = await predict_proba(model['model'], contents.decode('utf-8'))
     author_probas = dict(zip(model['model'].classes_, probabilities))
+
     return dict(sorted(author_probas.items(), key=lambda item: item[1], reverse=True))
+
 
 # Эндпоинт для предсказания нескольких элементов
 @app.post('/PredictItems', response_model=PredictItemsResponse, status_code=HTTPStatus.OK)
@@ -198,7 +196,9 @@ async def predict_items(request: PredictItemsRequest) -> PredictItemsResponse:
     texts_series = pd.Series(list(request.texts.values()))
     predictions = model['model'].predict(texts_series)
     author_predictions = dict(zip(request.texts.keys(), predictions))
+
     return PredictItemsResponse(response=author_predictions)
+
 
 # Эндпоинт для предсказания вероятностей нескольких элементов
 @app.post('/PredictItemsProba', response_model=PredictItemsProbaResponse, status_code=HTTPStatus.OK)
@@ -207,138 +207,35 @@ async def predict_items_proba(request: PredictItemsRequest) -> PredictItemsProba
     texts_series = pd.Series(list(request.texts.values()))
     predictions_proba = model['model'].predict_proba(texts_series)
     author_prediction_probas = pd.DataFrame(predictions_proba, index=request.texts.keys(), columns=model['model'].classes_).T.to_dict()
+
     return PredictItemsProbaResponse(response=author_prediction_probas)
 
-# # Асинхронная функция для чтения файла
-# async def read_file(request_file: UploadFile):
-#     contents = await request_file.read()
-#     return pd.read_json(io.BytesIO(contents))
-
-# # Функция для обучения модели
-# def fit_model(model, X_train, y_train, X_test, y_test):
-#     model.fit(X_train, y_train)
-#     y_pred = model.predict(X_test)
-#     metrics = {
-#         'accuracy': accuracy_score(y_test, y_pred),
-#         'precision': precision_score(y_test, y_pred, average='macro'),
-#         'recall': recall_score(y_test, y_pred, average='macro'),
-#         'f1': f1_score(y_test, y_pred, average='macro')
-#     }
-#     return metrics, model
-
-# # Эндпоинт для переобучения модели
-# @app.post("/refit_model_experiment", response_model=RefitModelResponse)
-# async def refit_model_experiment(
-#     id: Annotated[str, Form()],
-#     refitted_model_id: Annotated[str, Form()],
-#     hyperparameters: Annotated[str, Form()],
-#     request_file: UploadFile = File(),
-# ) -> RefitModelResponse:
-
-#     if refitted_model_id in all_models_list:
-#         raise HTTPException(status_code=400, detail=f'Model with id "{refitted_model_id}" already exists!')
-
-#     model_data = get_model(id)
-#     if not model_data:
-#         raise HTTPException(status_code=404, detail=f'Model with id "{id}" not found!')
-
-#     model = copy.deepcopy(model_data['model'])
-#     data = await read_file(request_file)
-#     X, y = data['X'], data['y']
-
-#     hyperparameters = json.loads(hyperparameters)
-
-#     try:
-#         if hasattr(model, "steps") and model.steps[-1][0] == 'onevsrestclassifier':
-#             model[-1].estimator.set_params(**hyperparameters)
-#         else:
-#             model[-1].set_params(**hyperparameters)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f'Error setting hyperparameters. Details: {e}')
-
-#     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=17)
-
-#     with concurrent.futures.ProcessPoolExecutor() as executor:
-#         future = executor.submit(fit_model, model, X_train, y_train, X_test, y_test)
-#         try:
-#             metrics, trained_model = future.result(timeout=10)
-#         except concurrent.futures.TimeoutError:
-#             future.cancel()
-#             raise HTTPException(status_code=500, detail='Model training exceeded time limit of 10 seconds')
-#         except Exception as e:
-#             raise HTTPException(status_code=500, detail=f'Error during model fitting/predicting. Details: {e}')
-
-#     try:
-#         train_sizes, train_scores, test_scores = learning_curve(
-#             model, X, y, train_sizes=np.linspace(0.1, 1.0, 5), cv=2, scoring='accuracy', n_jobs=-1
-#         )
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f'Error during fitting learning curve. Details: {e}')
-
-#     train_sizes, train_scores, test_scores = map(np.ndarray.tolist, [train_sizes, train_scores, test_scores])
-
-#     refitted_models_list[refitted_model_id] = {'model': trained_model}
-
-#     response = RefitModelResponse(
-#         message=f'Model with id "{id}" was successfully refitted with new id "{refitted_model_id}"',
-#         metrics=metrics,
-#         train_sizes=train_sizes,
-#         train_scores=train_scores,
-#         test_scores=test_scores
-#     )
-#     return response
-
-# async def read_file(request_file):
-#     content = await request_file.read()
-#     data = np.load(content)
-#     return {'X': data['text'], 'y': data['author']}
 
 # Асинхронная функция для чтения файла
-async def read_file(request_file: UploadFile):
-    contents = await request_file.read()
+async def read_parquet_file(upload_file: UploadFile):
+    contents = await upload_file.read()
     buffer = io.BytesIO(contents)
     data = pd.read_parquet(buffer, engine='pyarrow')
-    return {'X': data['text'], 'y': data['author']}
 
+    return data
 
-# # Пример использования
-# async def main(train_file: UploadFile, test_file: UploadFile):
-#     train_data = await read_file(train_file)
-#     test_data = await read_file(test_file)
-
-#     X_train, y_train = train_data['X'], train_data['y']
-#     X_test, y_test = test_data['X'], test_data['y']
-
-#     # Обучение модели и вычисление точности
-#     accuracy = train_and_save_model(X_train, y_train, X_test, y_test)
-#     print(f"Model accuracy: {accuracy}")
 
 # Словарь, сопоставляющий имена моделей с функциями
 model_functions = {
     "model2": model2,
     "model3": model3,
-    "model4": model3
+    "model4": model4
 }
 
-# def train_model_wrapper(train_function, hyperparameters, X_train, y_train, X_test, y_test):
-#     import time
-#     start_time = time.perf_counter()
-#     accuracy = train_function(hyperparameters, X_train, y_train, X_test, y_test)
-#     end_time = time.perf_counter()
-#     execution_time = end_time - start_time
-#     execution_time = str(round(execution_time, 2))
-
-#     return {
-#         "accuracy": accuracy,
-#         "execution_time": execution_time
-#     }
-
 # Эндпоинт для обучения активной модели
-@app.post("/TrainModel", status_code=HTTPStatus.OK)
-async def train_model_endpoint(request: RefitModelRequest,
-                               train_file: UploadFile = File(),
-                               test_file: UploadFile = File()) -> Dict[str, str]:
-    
+@app.post("/train_model")
+async def train_model(
+    request: str = Form('{"hyperparameters": {"random_state": 42, \
+"max_iter": 1000, "tol": 1e-4}}',
+                        description="Dictionary of hyperparameters as JSON string"),
+    train_file: UploadFile = File(..., description="Training dataset in Parquet format"),
+    test_file: UploadFile = File(..., description="Testing dataset in Parquet format"),
+):
     model_id = active_model_id
 
     # Проверка ID модели
@@ -346,44 +243,38 @@ async def train_model_endpoint(request: RefitModelRequest,
         raise HTTPException(status_code=404, detail="Обучение model1 занимает слишком много времени, пожалуйста, активируйте другую модель из списка")
     elif model_id not in model_functions:
         raise HTTPException(status_code=404, detail="Model not found")
-    
-    # Чтение данных из файлов
-    train_data = await read_file(train_file)
-    test_data = await read_file(test_file)
-    X_train, y_train = train_data['X'], train_data['y']
-    X_test, y_test = test_data['X'], test_data['y']
 
-    # Получение гиперпараметров из запроса
-    hyperparameters = request.hyperparameters or {}
+    # Чтение данных из файлов
+    train_data = await read_parquet_file(train_file)
+    test_data = await read_parquet_file(test_file)
+
+    X_train, y_train = train_data['text'], train_data['author']
+    X_test, y_test = test_data['text'], test_data['author']
 
     # Получение функции обучения модели
     train_function = model_functions.get(model_id)
-    if not train_function:
-        raise HTTPException(status_code=400, detail=f"Training function for model '{model_id}' not found.")
-    
+
+    try:
+        request_data = json.loads(request)
+        hyperparameters = request_data.get('hyperparameters', {})
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON format in 'request'")
+
     start_time = time.perf_counter()
-    accuracy = train_function(hyperparameters, X_train, y_train, X_test, y_test)
+    try:
+        accuracy = train_function(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            y_test=y_test,
+            **hyperparameters
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error training model: {e}')
+
     end_time = time.perf_counter()
     execution_time = end_time - start_time
     execution_time = str(round(execution_time, 2))
-
-    # # Запуск обучения в отдельном процессе
-    # loop = asyncio.get_event_loop()
-    # with ProcessPoolExecutor() as executor:
-    #     result = await loop.run_in_executor(
-    #         executor,
-    #         train_model_wrapper,
-    #         train_function,
-    #         hyperparameters,
-    #         X_train,
-    #         y_train,
-    #         X_test,
-    #         y_test
-    #     )
-    
-    # # Извлечение данных из результата
-    # accuracy = result["accuracy"]
-    # execution_time = result["execution_time"]
 
     return {
         "model_id": model_id,
@@ -413,7 +304,7 @@ async def partial_fit(
 
     # Преобразуем текстовые данные в tf-idf представление
     X_tfidf = vectorizer.transform(X_train)
-    
+
     # Загрузка классов из файла
     loaded_classes = joblib.load('authors.pkl')
 
@@ -422,11 +313,11 @@ async def partial_fit(
         model.partial_fit(X_tfidf, y, classes=loaded_classes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f'Error during partial fitting. Details: {e}')
-    
+
     # Обновляем модель в пайплайне
     pipeline.named_steps['sgdclassifier'] = model
     joblib.dump(pipeline, f'{model_id}.joblib')
-    
+
     return {"message": f"Model with id '{model_id}' successfully updated with new data."}
 
 # Запуск приложения
