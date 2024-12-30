@@ -283,6 +283,51 @@ async def train_model(
     }
 
 
+
+@app.post('/LearningCurve') # , response_class=LearningCurveResponse
+async def learning_curves(file: UploadFile = File(), hyperparameters: str = '{}'):
+    # Проверяем, загружена ли модель
+    if not active_model_id:
+        raise HTTPException(status_code=404, detail=f"No active models!")
+    
+    # Загружаем данные
+    data = await read_file(file)
+    X, y = data['X'], data['y']
+        
+    # Инициализируем модель
+    model = copy.deepcopy(initial_models_list[active_model_id]['model'])
+    # Принимаем и валидируем гиперпараметры
+    try:
+        hyperparameters_dict = json.loads(hyperparameters)
+        hyperparameters = RefitModelRequest(hyperparameters=hyperparameters_dict)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during parsing hyperparameters. Details: {hyperparameters}")
+    # Передаем гиперпараметры в модель
+    if active_model_id == 'model1':
+        model[-1].estimator.set_params(**hyperparameters_dict)
+    else:
+        model[-1].set_params(**hyperparameters_dict)
+
+    # Извлекаем данные
+    try:
+        X, y = data['X'], data['y']
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error during extracting X and y. Details: {e}")
+
+    # Рассчитываем данные для learning_curve
+    try:
+        train_sizes, train_scores, test_scores = learning_curve(model, X, y, train_sizes=np.linspace(0.1, 1.0, 5), cv=2, scoring='accuracy', n_jobs=-1)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'Error during fitting learning curve. Details: {e}') 
+
+    # Приводим результаты learing curve к нужному типу
+    train_sizes, train_scores, test_scores = train_sizes.tolist(), train_scores.tolist(), test_scores.tolist()
+    # Возвращаем сообщение 
+    response = LearningCurveResponse(train_sizes=train_sizes, train_scores=train_scores, test_scores=test_scores)
+    
+    return response
+
+
 @app.post("/partial_fit", response_model=Dict[str, str], status_code=HTTPStatus.OK)
 async def partial_fit(
     id: Annotated[str, Form()],
