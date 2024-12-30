@@ -1,18 +1,26 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
 from contextlib import asynccontextmanager
+from concurrent.futures import ProcessPoolExecutor
 import concurrent.futures
 from http import HTTPStatus
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Dict, Union, Any, Optional, Annotated
+import pyarrow.parquet as pq
 import joblib
+import requests
 import uvicorn
 import pandas as pd
 import numpy as np
 import json
+import time
+import asyncio
 from sklearn.model_selection import learning_curve, train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import copy
 import io
+from ngram_naive_bayes import model2
+from tfidf_log_reg_standardized import model3
+from SGDClassifier import model4
 
 # Инициализация FastAPI приложения
 app = FastAPI()
@@ -51,11 +59,11 @@ SGDClassifier(max_iter=10000, tol=1e-3))''',
     }
 }
 
-# Список перенаученных моделей
-refitted_models_list = {}
+# # Список моделей для обучения
+# refitted_models_list = {}
 
-# Объединяем словари для упрощения проверки
-all_models_list = {**initial_models_list, **refitted_models_list}
+# # Объединяем словари для упрощения проверки
+# all_models_list = {**initial_models_list, **refitted_models_list}
 
 # Конекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
@@ -92,16 +100,16 @@ class PredictItemsResponse(BaseModel):
 class PredictItemsProbaResponse(BaseModel):
     response: Dict[str, Dict[str, float]]
 
-class RefitModelRequest(ModelRequestBase):
-    refitted_model_id: str
-    hyperparameters: Dict[str, Any]
+class RefitModelRequest(BaseModel):
+    # hyperparameters: Dict[str, Any] = Field(default_factory=dict)
+    hyperparameters: Optional[Dict[str, Any]] = None or {}
 
-class RefitModelResponse(BaseModel):
-    message: str
-    metrics: Dict[str, float]
-    train_sizes: List[Union[float, int]]
-    train_scores: List[List[Union[float, int]]]
-    test_scores: List[List[Union[float, int]]]
+# class RefitModelResponse(BaseModel):
+#     message: str
+#     metrics: Dict[str, float]
+#     train_sizes: List[Union[float, int]]
+#     train_scores: List[List[Union[float, int]]]
+#     test_scores: List[List[Union[float, int]]]
 
 # Функция для получения модели по её идентификатору
 def get_model(model_id: str) -> Dict[str, Any]:
@@ -125,7 +133,7 @@ async def predict_proba(model: Any, text: str) -> List[float]:
 @app.get('/ModelsList', response_model=List[Dict[str, str]])
 async def models_list() -> List[Dict[str, str]]:
     models_info = []
-    for model_name, model_info in all_models_list.items():
+    for model_name, model_info in initial_models_list.items():
         info = {
             'name': model_name,
             'description': model_info.get('description', 'No description available'),
@@ -137,10 +145,10 @@ async def models_list() -> List[Dict[str, str]]:
 @app.post("/setModel", status_code=HTTPStatus.OK)
 async def set_model(
     request: ModelRequestBase,
-    id: Annotated[str, Query(..., enum=list(all_models_list.keys()))]
+    id: Annotated[str, Query(..., enum=list(initial_models_list.keys()))]
 ) -> Dict[str, str]:
     global active_model_id
-    if id not in all_models_list:
+    if id not in initial_models_list:
         raise HTTPException(status_code=400, detail=f'Model with id "{id}" doesn\'t exist!')
     active_model_id = id
     return {"message": f"Active model set to '{active_model_id}'"}
@@ -286,13 +294,103 @@ async def predict_items_proba(request: PredictItemsRequest) -> PredictItemsProba
 #     return {'X': data['text'], 'y': data['author']}
 
 # Асинхронная функция для чтения файла
-import pyarrow.parquet as pq
-
 async def read_file(request_file: UploadFile):
     contents = await request_file.read()
     buffer = io.BytesIO(contents)
     data = pd.read_parquet(buffer, engine='pyarrow')
     return {'X': data['text'], 'y': data['author']}
+
+
+# # Пример использования
+# async def main(train_file: UploadFile, test_file: UploadFile):
+#     train_data = await read_file(train_file)
+#     test_data = await read_file(test_file)
+
+#     X_train, y_train = train_data['X'], train_data['y']
+#     X_test, y_test = test_data['X'], test_data['y']
+
+#     # Обучение модели и вычисление точности
+#     accuracy = train_and_save_model(X_train, y_train, X_test, y_test)
+#     print(f"Model accuracy: {accuracy}")
+
+# Словарь, сопоставляющий имена моделей с функциями
+model_functions = {
+    "model2": model2,
+    "model3": model3,
+    "model4": model3
+}
+
+# def train_model_wrapper(train_function, hyperparameters, X_train, y_train, X_test, y_test):
+#     import time
+#     start_time = time.perf_counter()
+#     accuracy = train_function(hyperparameters, X_train, y_train, X_test, y_test)
+#     end_time = time.perf_counter()
+#     execution_time = end_time - start_time
+#     execution_time = str(round(execution_time, 2))
+
+#     return {
+#         "accuracy": accuracy,
+#         "execution_time": execution_time
+#     }
+
+# Эндпоинт для обучения активной модели
+@app.post("/TrainModel", status_code=HTTPStatus.OK)
+async def train_model_endpoint(request: RefitModelRequest,
+                               train_file: UploadFile = File(),
+                               test_file: UploadFile = File()) -> Dict[str, str]:
+    
+    model_id = active_model_id
+
+    # Проверка ID модели
+    if model_id == 'model1':
+        raise HTTPException(status_code=404, detail="Обучение model1 занимает слишком много времени, пожалуйста, активируйте другую модель из списка")
+    elif model_id not in model_functions:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    # Чтение данных из файлов
+    train_data = await read_file(train_file)
+    test_data = await read_file(test_file)
+    X_train, y_train = train_data['X'], train_data['y']
+    X_test, y_test = test_data['X'], test_data['y']
+
+    # Получение гиперпараметров из запроса
+    hyperparameters = request.hyperparameters or {}
+
+    # Получение функции обучения модели
+    train_function = model_functions.get(model_id)
+    if not train_function:
+        raise HTTPException(status_code=400, detail=f"Training function for model '{model_id}' not found.")
+    
+    start_time = time.perf_counter()
+    accuracy = train_function(hyperparameters, X_train, y_train, X_test, y_test)
+    end_time = time.perf_counter()
+    execution_time = end_time - start_time
+    execution_time = str(round(execution_time, 2))
+
+    # # Запуск обучения в отдельном процессе
+    # loop = asyncio.get_event_loop()
+    # with ProcessPoolExecutor() as executor:
+    #     result = await loop.run_in_executor(
+    #         executor,
+    #         train_model_wrapper,
+    #         train_function,
+    #         hyperparameters,
+    #         X_train,
+    #         y_train,
+    #         X_test,
+    #         y_test
+    #     )
+    
+    # # Извлечение данных из результата
+    # accuracy = result["accuracy"]
+    # execution_time = result["execution_time"]
+
+    return {
+        "model_id": model_id,
+        "accuracy": str(accuracy),
+        "execution_time": f"{execution_time} seconds"
+    }
+
 
 @app.post("/partial_fit", response_model=Dict[str, str], status_code=HTTPStatus.OK)
 async def partial_fit(
