@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI AJAX Interface</title>
+    <script>
+        async function fetchModelsList() {
+            try {
+                const response = await fetch('http://localhost:8000/ModelsList');
+                if (!response.ok) {
+                    throw new Error('Network response was not ok ' + response.statusText);
+                }
+                const data = await response.json();
+                const modelsListDiv = document.getElementById('modelsList');
+                modelsListDiv.innerHTML = '';
+                data.forEach(model => {
+                    modelsListDiv.innerHTML += `<li>${model.name}: ${model.description}</li>`;
+                });
+            } catch (error) {
+                console.error('Fetch error: ', error);
+            }
+        }
+
+        async function predictAuthor() {
+            const textInput = document.getElementById('textInput').value;
+            try {
+                const response = await fetch('http://localhost:8000/PredictItem', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: textInput })
+                });
+                if (!response.ok) {
+                    throw new Error('Network response was not ok ' + response.statusText);
+                }
+                const result = await response.json();
+                document.getElementById('result').innerText = `Prediction: ${result.author}`;
+            } catch (error) {
+                console.error('Error during prediction:', error);
+            }
+        }
+
+        window.onload = fetchModelsList;
+    </script>
+</head>
+<body>
+    <h1>FastAPI AJAX Interface</h1>
+    <div>
+        <h2>Available Models</h2>
+        <ul id="modelsList"></ul>
+    </div>
+    <div>
+        <h2>Predict Author</h2>
+        <textarea id="textInput" rows="4" cols="50" placeholder="Enter text for prediction"></textarea><br>
+        <button onclick="predictAuthor()">Submit</button>
+        <div id="result"></div>
+    </div>
+</body>
+</html>

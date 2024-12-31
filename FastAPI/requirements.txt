@@ -1,3 +1,4 @@
+kaggle==1.6.17
 fastapi==0.115.5
 pydantic==2.8.2
 joblib==1.4.2
@@ -9,4 +10,7 @@ python-multipart==0.0.20
 pyarrow==18.1.0
 requests==2.32.3
 aiohttp==3.11.11
-kaggle==1.6.17
+starlette==0.41.3
+streamlit==1.41.1
+plotly==5.24.1
+nltk==3.9.1
