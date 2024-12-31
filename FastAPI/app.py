@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from sklearn.model_selection import learning_curve
 from http import HTTPStatus
 from pydantic import BaseModel, Field
-from typing import List, Dict, Union, Any, Optional, Annotated
+from typing import List, Dict, Union, Any, Optional, Annotated, AsyncGenerator
 import joblib
 import uvicorn
 import pandas as pd
@@ -89,7 +89,7 @@ SGDClassifier(max_iter=10000, tol=1e-3))''',
 
 # Конекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> None:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]: #None:
     global active_model_id
     logger.info("Начало загрузки модели...")
     active_model_id = 'model1'
@@ -121,6 +121,12 @@ class PredictItemsResponse(BaseModel):
 
 class PredictItemsProbaResponse(BaseModel):
     response: Dict[str, Dict[str, float]]
+
+
+class LearningCurveResponse(BaseModel):
+    train_sizes: List[Union[float, int]]
+    train_scores: List[List[Union[float, int]]]
+    test_scores: List[List[Union[float, int]]]
 
 
 # Функция для получения модели по её идентификатору
@@ -269,6 +275,14 @@ async def read_parquet_file(upload_file: UploadFile):
     return data
 
 
+# Временно добавлю, но лучше потом удалить, наверное
+async def read_file(request_file: UploadFile):
+    contents = await request_file.read()
+    buffer = io.BytesIO(contents)
+    data = pd.read_parquet(buffer, engine='pyarrow')
+    return {'X': data['text'], 'y': data['author']}
+
+
 # Словарь, сопоставляющий имена моделей с функциями
 model_functions = {
     "model2": model2,
@@ -340,7 +354,7 @@ async def train_model(
 
 
 # Эндпоинт для получения кривых обучения
-@app.post('/LearningCurve', status_code=HTTPStatus.OK)
+@app.post('/LearningCurve', response_model=LearningCurveResponse, status_code=HTTPStatus.OK)
 async def learning_curves(
     request: str = Form('{"hyperparameters": {"random_state": 42, \
 "max_iter": 1000, "tol": 1e-4}}',
