@@ -82,4 +82,4 @@ def model3(X_train, y_train, X_test, y_test,
     # Сохранение модели
     joblib.dump(tfidf_log_reg_standardized, model_path)
 
-    return metrics
+    return (metrics, model_path)

@@ -80,4 +80,4 @@ def model4(X_train, y_train, X_test, y_test,
     # Сохранение модели
     joblib.dump(SGDpipe, model_path)
 
-    return metrics
+    return (metrics, model_path)

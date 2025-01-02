@@ -120,27 +120,20 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Очистка ресурсов...")
 
-
 # Регистрируем lifespan для приложения
-app.router.lifespan_context = lifespan()
-
-
-# Базовая модель запроса
-class ModelRequestBase(BaseModel):
-    pass
-
+app.router.lifespan_context = lifespan
 
 # Задаем различные модели запросов и ответов
-class PredictItemRequest(ModelRequestBase):
+class PredictItemRequest(BaseModel):
     text: str
 
 
 class PredictItemResponse(BaseModel):
-    model_id: str
+    mod_id: str
     author: str
 
 
-class PredictItemsRequest(ModelRequestBase):
+class PredictItemsRequest(BaseModel):
     texts: Dict[str, str]
 
 
@@ -159,7 +152,7 @@ class LearningCurveResponse(BaseModel):
 
 
 # Функция для получения модели по её идентификатору
-def get_model(model_id: str) -> Dict[str, Any]:
+def get_model(mod_id: str) -> Dict[str, Any]:
     """
     Получает модель по её идентификатору из списка начальных моделей.
     Параметры:
@@ -170,13 +163,13 @@ def get_model(model_id: str) -> Dict[str, Any]:
         HTTPException: Вызывается, если модель с таким идентификатором
         не существует.
     """
-    if model_id in initial_models_list:
-        return initial_models_list[model_id]
+    if mod_id in initial_models_list:
+        return initial_models_list[mod_id]
 
-    logger.error('Модель с id "%s" не существует!', model_id)
+    logger.error('Модель с id "%s" не существует!', mod_id)
 
     raise HTTPException(status_code=400,
-                        detail=f'Model with id "{model_id}" doesn\'t exist!')
+                        detail=f'Model with id "{mod_id}" doesn\'t exist!')
 
 
 # Асинхронная функция для предсказания одного элемента
@@ -249,13 +242,12 @@ async def models_list() -> List[Dict[str, str]]:
 # Эндпоинт для установки активной модели
 @app.post("/setModel", status_code=HTTPStatus.OK)
 async def set_model(
-    # request: ModelRequestBase,
-    model_id: Annotated[str, Query(..., enum=list(initial_models_list.keys()))]
+    mod_id: Annotated[str, Query(..., enum=list(initial_models_list.keys()))]
 ) -> Dict[str, str]:
     """
     Устанавливает активную модель по её идентификатору.
     Параметры:
-        model_id (Annotated[str]): Идентификатор модели для установки.
+        mod_id (Annotated[str]): Идентификатор модели для установки.
     Возвращает:
         Dict[str, str]: Сообщение об успешной установке модели.
     Исключения:
@@ -263,13 +255,13 @@ async def set_model(
         идентификатором не найдена.
     """
     global active_model_id
-    if model_id not in initial_models_list:
-        logger.error('Модель с id "%s" не существует!', model_id)
+    if mod_id not in initial_models_list:
+        logger.error('Модель с id "%s" не существует!', mod_id)
         raise HTTPException(
             status_code=400,
-            detail=f'Model with id "{model_id}" doesn\'t exist!')
+            detail=f'Model with id "{mod_id}" doesn\'t exist!')
 
-    active_model_id = model_id
+    active_model_id = mod_id
     logger.info("Установлена активная модель '%s'", active_model_id)
 
     return {"message": f"Active model set to '{active_model_id}'"}
@@ -288,14 +280,14 @@ async def predict_item(request: PredictItemRequest) -> PredictItemResponse:
         PredictItemResponse: Ответ с идентификатором модели
         и предсказанным автором.
     """
-    model_id = active_model_id
-    model = get_model(model_id)
+    mod_id = active_model_id
+    model = get_model(mod_id)
     author_prediction = await predict(model['model'], request.text)
 
     logger.info('Предсказание сделано для одного элемента с \
-                 использованием модели %s.', model_id)
+                 использованием модели %s.', mod_id)
 
-    return PredictItemResponse(id=model_id, author=author_prediction)
+    return PredictItemResponse(mod_id=mod_id, author=author_prediction)
 
 
 # Эндпоинт для предсказания одного элемента из файла
@@ -313,14 +305,14 @@ async def predict_item_file(request: UploadFile = File()) \
     """
     contents = await request.read()
     text_data = contents.decode('utf-8')
-    model_id = active_model_id
-    model = get_model(model_id)
+    mod_id = active_model_id
+    model = get_model(mod_id)
     author_prediction = await predict(model['model'], text_data)
 
     logger.info('Предсказание сделано для одного элемента из файла с \
-                 использованием модели %s.', model_id)
+                 использованием модели %s.', mod_id)
 
-    return PredictItemResponse(id=model_id, author=author_prediction)
+    return PredictItemResponse(mod_id=mod_id, author=author_prediction)
 
 
 # Эндпоинт для предсказания вероятностей одного элемента
@@ -336,13 +328,13 @@ async def predict_item_proba(request: PredictItemRequest) -> Dict[str, float]:
     Возвращает:
         Dict[str, float]: Словарь с классами и их вероятностями.
     """
-    model_id = active_model_id
-    model = get_model(model_id)
+    mod_id = active_model_id
+    model = get_model(mod_id)
     probabilities = await predict_proba(model['model'], request.text)
     author_probas = dict(zip(model['model'].classes_, probabilities))
 
     logger.info('Вероятностное предсказание сделано для одного элемента \
-                 с использованием модели %s.', model_id)
+                 с использованием модели %s.', mod_id)
 
     return dict(sorted(author_probas.items(),
                        key=lambda item: item[1], reverse=True))
@@ -362,14 +354,14 @@ async def predict_item_proba_file(request: UploadFile = File()) \
         Dict[str, float]: Словарь с классами и их вероятностями.
     """
     contents = await request.read()
-    model_id = active_model_id
-    model = get_model(model_id)
+    mod_id = active_model_id
+    model = get_model(mod_id)
     probabilities = await predict_proba(model['model'],
                                         contents.decode('utf-8'))
     author_probas = dict(zip(model['model'].classes_, probabilities))
 
     logger.info('Вероятностное предсказание сделано для одного элемента из \
-                файла с использованием модели %s.', model_id)
+                файла с использованием модели %s.', mod_id)
 
     return dict(sorted(author_probas.items(),
                        key=lambda item: item[1], reverse=True))
@@ -388,14 +380,14 @@ async def predict_items(request: PredictItemsRequest) -> PredictItemsResponse:
         PredictItemsResponse: Ответ с предсказанными авторами для
         каждого текста.
     """
-    model_id = active_model_id
-    model = get_model(model_id)
+    mod_id = active_model_id
+    model = get_model(mod_id)
     texts_series = pd.Series(list(request.texts.values()))
     predictions = model['model'].predict(texts_series)
     author_predictions = dict(zip(request.texts.keys(), predictions))
 
     logger.info('Предсказания сделаны для нескольких элементов \
-                 с использованием модели %s.', model_id)
+                 с использованием модели %s.', mod_id)
 
     return PredictItemsResponse(response=author_predictions)
 
@@ -474,17 +466,17 @@ async def train_model(
         Словарь с ID модели, временем выполнения и метриками обучения.
     """
 
-    model_id = active_model_id
+    global active_model_id
+    mod_id = active_model_id
 
     # Проверка ID модели
-    if model_id == 'model1':
+    if mod_id == 'model1':
         logger.warning("Попытка обучить model1, которую долго обучать.")
         raise HTTPException(status_code=404,
-                            detail="Обучение model1 занимает слишком много \
-                            времени, пожалуйста, активируйте другую модель \
-                            из списка")
-    if model_id not in model_functions:
-        logger.error('Модель с id "%s" не найдена для обучения.', model_id)
+                            detail="""Обучение model1 занимает слишком много
+времени, пожалуйста, активируйте другую модель из списка""")
+    if mod_id not in model_functions:
+        logger.error('Модель с id "%s" не найдена для обучения.', mod_id)
         raise HTTPException(status_code=404, detail="Model not found")
 
     # Чтение данных из файлов
@@ -495,7 +487,7 @@ async def train_model(
     X_test, y_test = test_data['text'], test_data['author']
 
     # Получение функции обучения модели
-    train_function = model_functions.get(model_id)
+    train_function = model_functions.get(mod_id)
 
     try:
         request_data = json.loads(request)
@@ -508,7 +500,7 @@ async def train_model(
 
     start_time = time.perf_counter()
     try:
-        metrics = train_function(
+        _model = train_function(
             X_train=X_train,
             y_train=y_train,
             X_test=X_test,
@@ -524,10 +516,19 @@ async def train_model(
     execution_time = end_time - start_time
     execution_time = str(round(execution_time, 2))
     logger.info('Модель %s успешно обучена за %s секунд.',
-                model_id, execution_time)
+                mod_id, execution_time)
+
+    # Добавляем новую модель в словарь
+    metrics, model_path = _model
+    initial_models_list['model5'] = {
+        'model': joblib.load(model_path),
+        'description': 'Новая обученная модель'
+    }
+
+    active_model_id = 'model5'
 
     return {
-        "model_id": model_id,
+        "model_id": 'model5',
         "execution_time": f"{execution_time} seconds",
         "accuracy": str(metrics['accuracy']),
         "precision": str(metrics['precision']),
@@ -613,7 +614,7 @@ async def learning_curves(
 @app.post("/partial_fit", response_model=Dict[str, str],
           status_code=HTTPStatus.OK)
 async def partial_fit(
-    model_id: Annotated[str, Form()],
+    mod_id: Annotated[str, Form()],
     request_file: UploadFile = File()
 ) -> Dict[str, str]:
     """
@@ -624,13 +625,13 @@ async def partial_fit(
     Возвращает:
         Сообщение, подтверждающее успешное обновление модели.
     """
-    if model_id not in initial_models_list:
-        logger.error('Модель с id "%s" не существует!', model_id)
+    if mod_id not in initial_models_list:
+        logger.error('Модель с id "%s" не существует!', mod_id)
         raise HTTPException(
             status_code=400,
-            detail=f'Model with id "{model_id}" doesn\'t exist!')
+            detail=f'Model with id "{mod_id}" doesn\'t exist!')
 
-    pipeline = initial_models_list[model_id]['model']
+    pipeline = initial_models_list[mod_id]['model']
 
     # Считываем данные для обучения
     train_data = await read_parquet_file(request_file)
@@ -657,12 +658,12 @@ async def partial_fit(
 
     # Обновляем модель в пайплайне
     pipeline.named_steps['sgdclassifier'] = model
-    joblib.dump(pipeline, f'{model_id}.joblib')
+    joblib.dump(pipeline, f'{mod_id}.joblib')
 
     logger.info("Модель с id '%s' успешно дообучена с новыми данными.",
-                model_id)
+                mod_id)
 
-    return {"message": f"Model with id '{model_id}' \
+    return {"message": f"Model with id '{mod_id}' \
             successfully updated with new data."}
 
 # Запуск приложения

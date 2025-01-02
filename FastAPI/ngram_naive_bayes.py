@@ -54,4 +54,4 @@ def model2(X_train, y_train, X_test, y_test,
     # Сохранение модели
     joblib.dump(ngram_naive_bayes, model_path)
 
-    return metrics
+    return (metrics, model_path)
