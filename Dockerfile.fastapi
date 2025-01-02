@@ -1,0 +1,25 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Установим зависимости
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем остальные файлы
+COPY app.py ./
+COPY index.html ./
+COPY authors.pkl ./
+COPY ngram_naive_bayes.joblib ./
+COPY ngram_naive_bayes.py ./
+COPY SGDClassifier.joblib ./
+COPY SGDClassifier.py ./
+COPY tfidf_log_reg_standardized.joblib ./
+COPY tfidf_log_reg_standardized.py ./
+
+# Запуск скрипта для загрузки файлов
+COPY download_files.py ./
+RUN python download_files.py
+
+# Запускаем FastAPI с Uvicorn
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

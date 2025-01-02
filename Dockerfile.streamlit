@@ -1,0 +1,13 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Установим зависимости
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем файл Streamlit приложения
+COPY streamlit_nlp.py ./
+
+# Запускаем Streamlit
+CMD ["streamlit", "run", "streamlit_nlp.py", "--server.port", "8501", "--server.enableCORS", "false", "--server.address", "0.0.0.0"]
