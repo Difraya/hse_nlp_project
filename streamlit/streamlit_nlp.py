@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import requests
 import plotly.express as px
@@ -154,23 +152,15 @@ if choice == "Пользовательская часть":
 
     # обработка датасета
     if type_inf == "Загрузить файл":
-      upfile = st.file_uploader("Загрузите файл в формате parquet для мультиинференса", type=["parquet"])
+      upfile = st.file_uploader("Загрузите файл в формате txt для мультиинференса", type=["txt"])
 
       if upfile is not None:
         try:
-          data = pd.read_parquet(upfile)
-          st.success("Ваш файл успешно загружен")
-          st.write("Первые 10 строк из вашего датасета:")
-          st.dataframe(data.head(10))
-          st.write(f"Количество строк: {data.shape[0]}, количество столбцов {data.shape[1]}")
-          st.write("Описательная статистика:")
-          st.write(data.describe(include='object'))
+          data = upfile
         except Exception as e:
           st.error(f"Ошибка при загрузке файла: {str(e)}")
 
-      st.subheader("Анализ и обработка датасета")
-        # для сокращения времени загрузки графиков выберем 5 случайных текстов для визуализации
-      df = data.sample(5)
+     # st.subheader("Анализ и обработка датасета")
 
       if st.button("Сделать предсказания по файлу"):
 
@@ -199,14 +189,14 @@ if choice == "Пользовательская часть":
           else:
             st.error(f"Ошибка при предсказании: {response.status_code}")
 
-        if pred_type == "Предсказание с вероятностями":
-         response = requests.post(f"{API_URL}/PredictItemProbaFile", files=files)
-         if response.status_code == 200:
-          prediction = response.json()
-          for author, prob in prediction.items():
-            st.write(f"{author}: {prob:.4f}")
-         else:
-          st.error(f"Ошибка при предсказании: {response.status_code}")
+        elif pred_type == "Предсказание с вероятностями":
+          response = requests.post(f"{API_URL}/PredictItemProbaFile", files=files)
+          if response.status_code == 200:
+            prediction = response.json()
+            for author, prob in prediction.items():
+              st.write(f"{author}: {prob:.4f}")
+          else:
+            st.error(f"Ошибка при предсказании: {response.status_code}")
 
 # Вывод списка моделей
 elif choice == "Информация про модели и данные":
