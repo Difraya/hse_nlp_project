@@ -92,7 +92,7 @@ SGDClassifier(max_iter=10000, tol=1e-3))''',
 
 # Конекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
-async def lifespan():  # app: FastAPI
+async def lifespan(app: FastAPI):
     """
     Асинхронный менеджер контекста для управления жизненным циклом
     приложения FastAPI.
