@@ -1,10 +1,26 @@
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score
+from sklearn.metrics import recall_score, f1_score
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import make_pipeline
 from sklearn.naive_bayes import MultinomialNB
 import joblib
 
-def model2(X_train, y_train, X_test, y_test, model_path='ngram_naive_bayes_2.joblib', **hparams):
+
+def model2(X_train, y_train, X_test, y_test,
+           model_path='ngram_naive_bayes_2.joblib', **hparams):
+    """
+    Train a Naive Bayes model using n-grams and evaluate it on the test set.
+    Parameters:
+    - X_train: Training data
+    - y_train: Training labels
+    - X_test: Test data
+    - y_test: Test labels
+    - model_path: Path to save the trained model
+    - hparams: Additional hyperparameters
+    Returns:
+    - metrics: Dictionary containing evaluation metrics
+    """
+
     # Определение и обучение модели
     ngram_naive_bayes = make_pipeline(
         CountVectorizer(ngram_range=(1, 2), max_features=500),
@@ -19,8 +35,10 @@ def model2(X_train, y_train, X_test, y_test, model_path='ngram_naive_bayes_2.job
     # Вычисление метрик
     metrics = {
         'accuracy': accuracy_score(y_test, ngram_naive_bayes_preds),
-        'precision': precision_score(y_test, ngram_naive_bayes_preds, average='macro'),
-        'recall': recall_score(y_test, ngram_naive_bayes_preds, average='macro'),
+        'precision': precision_score(y_test,
+                                     ngram_naive_bayes_preds, average='macro'),
+        'recall': recall_score(y_test,
+                               ngram_naive_bayes_preds, average='macro'),
         'f1': f1_score(y_test, ngram_naive_bayes_preds, average='macro')
     }
 

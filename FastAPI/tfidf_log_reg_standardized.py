@@ -1,11 +1,36 @@
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score
+from sklearn.metrics import recall_score, f1_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfVectorizer
 import joblib
 
-def model3(X_train, y_train, X_test, y_test, model_path='tfidf_log_reg_standardized_2.joblib', **hparams):
+
+def model3(X_train, y_train, X_test, y_test,
+           model_path='tfidf_log_reg_standardized_2.joblib', **hparams):
+    """
+    Trains a logistic regression model with a pipeline that includes TfidfVectorizer and StandardScaler,
+    evaluates it on the test set, and saves the trained model.
+
+    Parameters:
+    - X_train: list or array-like
+        The training input samples.
+    - y_train: list or array-like
+        The target values (class labels) for training.
+    - X_test: list or array-like
+        The testing input samples.
+    - y_test: list or array-like
+        The true target values (class labels) for testing.
+    - model_path: str, optional
+        The path where the trained model is saved. Default is 'tfidf_log_reg_standardized_2.joblib'.
+    - hparams: dict, optional
+        Hyperparameters for the LogisticRegression, such as 'random_state', 'max_iter', and 'solver'.
+
+    Returns:
+    - metrics: dict
+        A dictionary containing accuracy, precision, recall, and F1 score of the model.
+    """
     # Определяем гиперпараметры по умолчанию
     default_hparams = {
         'random_state': 42,
@@ -46,8 +71,8 @@ def model3(X_train, y_train, X_test, y_test, model_path='tfidf_log_reg_standardi
     }
 
     # Вывод метрик
-    print(f'''Модель tfidf_log_reg_standardized обучена на предоставленных данных
-и сохранена в tfidf_log_reg_standardized_2.joblib.
+    print(f'''Модель tfidf_log_reg_standardized обучена на
+предоставленных данных и сохранена в tfidf_log_reg_standardized_2.joblib.
 Получены метрики:
 - Точность (Accuracy): {metrics['accuracy']}
 - Точность (Precision): {metrics['precision']}
