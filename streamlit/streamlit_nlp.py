@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import requests
 import plotly.express as px
@@ -48,11 +50,17 @@ def del_stopwords(text):
 
 # ф-ция для получения частей речи
 def get_pos(text):
-    if isinstance(text, list):
-        text = ' '.join(text)
-    pos = [i[1] for i in pos_tag(text)]
+    if isinstance(text, str):
+        tokens = word_tokenize(text)
+    elif isinstance(text, list):
+        tokens = text
+    else:
+        raise TypeError("Ожидалась строка или список слов!")
+
+    pos = [i[1] for i in pos_tag(tokens, lang='eng')]
     pos_count = Counter(pos)
     return pos_count
+
 # ф-ция для подсчета знаков препинания
 def punctuation(text):
     count_punct = len(re.findall(r'[^\w\s]', text))
