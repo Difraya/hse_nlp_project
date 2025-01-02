@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import requests
 import plotly.express as px
@@ -16,6 +18,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 nltk.download("punkt")
 nltk.download("stopwords")
+nltk.download('averaged_perceptron_tagger')
 
 st.set_page_config(page_title="Авторство текстов", layout="wide")
 pages = ["Пользовательская часть", "Информация про модели и данные", "Обучи свою модель"]
@@ -43,13 +46,19 @@ def most_common_ngrams(ngrams_list, top_n=3):
 def del_stopwords(text):
     words = word_tokenize(text)
     res = [word.lower() for word in words if word.lower() not in stopwords.words('english') and word.isalpha()]
-    return res
+    return ' '.join(res)
 
 # ф-ция для получения частей речи
 def get_pos(text):
+    if isinstance(text, list):
+        text = ' '.join(text)
     pos = [i[1] for i in pos_tag(text)]
     pos_count = Counter(pos)
     return pos_count
+# ф-ция для подсчета знаков препинания
+def punctuation(text):
+    count_punct = len(re.findall(r'[^\w\s]', text))
+    return count_punct
 
 if choice == "Пользовательская часть":
     st.title("Пользовательская часть")
@@ -61,78 +70,87 @@ if choice == "Пользовательская часть":
       if txt is None:
           st.warning("Введите текст для анализа и обработки")
           st.stop()
-      st.subheader("Анализ текста и обработка текста")
-      if st.button("Удалить стоп-слова"):
-        text = del_stopwords(txt)
       else:
-        text = txt
+        st.subheader("Анализ текста и обработка текста")
+        st.write("В данном тексте:")
+        st.write(f"Общее количество слов: {len(txt.split())}")
+        st.write(f"Количество уникальных слов: {len(set(txt.split()))}")
+        st.write(f"Количество знаков препинания: {punctuation(txt)}")
+        st.warning("Перед построением графиков рекомендуется удалить стоп-слова!")
+        if st.checkbox("Удалить стоп-слова"):
+          text = del_stopwords(txt)
+        else:
+          text = txt
 
-      if st.button("Показать распределение частей речи"):
-        if text:
-            pos = get_pos(text)
-            df_pos = pd.DataFrame(sorted(pos.items(), key=lambda x: x[1], reverse=True), columns=['part_of_speech', 'count'])
-            fig, ax = plt.subplots(figsize=(10, 5))
-            sns.barplot(x=df_pos['part_of_speech'], y=df_pos['count'], ax=ax)
-            ax.set_xticks(ax.get_xticks())
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
-            ax.set_title('Распределение частей речи')
+        if st.button("Показать распределение частей речи"):
+          if text:
+                pos = get_pos(text)
+                df_pos = pd.DataFrame(sorted(pos.items(), key=lambda x: x[1], reverse=True), columns=['part_of_speech', 'count'])
+                fig, ax = plt.subplots(figsize=(10, 5))
+                sns.barplot(x=df_pos['part_of_speech'], y=df_pos['count'], ax=ax)
+                ax.set_xticks(ax.get_xticks())
+                ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+                ax.set_title('Распределение частей речи')
+                st.pyplot(fig)
+          else:
+                st.warning("Введите текст для анализа!")
+
+        if text is not None:
+          ngram_type = st.selectbox("Выберите тип n-грамм:", ["Униграммы", "Биграммы", "Триграммы"])
+          if ngram_type == "Униграммы":
+            n = 1
+          elif ngram_type == "Биграммы":
+            n = 2
+          else:
+            n = 3
+          ngrams_list = get_ngrams(text, n)
+          top_ngrams = most_common_ngrams(ngrams_list)
+          st.subheader(f"Самые популярные {ngram_type.lower()}:")
+
+          if top_ngrams:
+            labels = [' '.join(gram) for gram, count in top_ngrams]
+            counts = [count for gram, count in top_ngrams]
+            fig, ax = plt.subplots()
+            ax.bar(labels, counts, color='skyblue')
+            ax.set_ylabel("Частота")
+            ax.set_title(f"Топ-3 {ngram_type.lower()}")
+            ax.set_xticks(range(len(labels)))
+            ax.set_xticklabels(labels, rotation=45, ha="right")
             st.pyplot(fig)
-        else:
-            st.warning("Введите текст для анализа!")
+          else:
+            st.write("Недостаточно данных для построения графика.")
 
-      ngram_type = st.selectbox("Выберите тип n-грамм:", ["Униграммы", "Биграммы", "Триграммы"])
-      if ngram_type == "Униграммы":
-        n = 1
-      elif ngram_type == "Биграммы":
-        n = 2
-      else:
-        n = 3
-      ngrams_list = get_ngrams(text, n)
-      top_ngrams = most_common_ngrams(ngrams_list)
-      st.subheader(f"Самые популярные {ngram_type.lower()}:")
+          w = get_top_words(txt)
+          x = [i[0] for i in w]
+          y = [i[1] for i in w]
+          df = pd.DataFrame({"Слово": x, "Частота": y})
+          fig = px.bar(df, x="Слово", y="Частота", title="Топ слов")
+          st.plotly_chart(fig, use_container_width=True)
 
-      if top_ngrams:
-        labels = [' '.join(gram) for gram, count in top_ngrams]
-        counts = [count for gram, count in top_ngrams]
-        fig, ax = plt.subplots()
-        ax.bar(labels, counts, color='skyblue')
-        ax.set_ylabel("Частота")
-        ax.set_title(f"Топ-3 {ngram_type.lower()}")
-        ax.set_xticks(range(len(labels)))
-        ax.set_xticklabels(labels, rotation=45, ha="right")
-        st.pyplot(fig)
-      else:
-        st.write("Недостаточно данных для построения графика.")
+        if st.button("Предсказать к каким авторам мой текст ближе"):
 
-      w = get_top_words(txt)
-      x = [i[0] for i in w]
-      y = [i[1] for i in w]
-      fig = px.bar(x=x, y=y, title="Топ слов")
-      st.plotly_chart(fig, use_container_width=True)
+          if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
+            st.warning("Сначала выберите модель для предсказания")
+            st.warning("Для выбора перейдите на страницу: 'Информация про модели и данные'")
+            if st.button("Перейти к выбору модели"):
+              st.experimental_set_query_params(page="Информация про модели и данные")
+            st.stop()
 
-      if st.button("Предсказать к каким авторам мой текст ближе"):
+          st.write(f"Для предсказаний вы используете модель: **{st.session_state['selected_model']}**")
 
-        if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
-          st.warning("Сначала выберите модель для предсказания")
-          if st.button("Перейти к выбору модели"):
-            st.experimental_set_query_params(page="Информация про модели и данные")
-          st.stop()
-
-        st.write(f"Для предсказаний вы используете модель: **{st.session_state['selected_model']}**")
-
-        if txt:
-          r = requests.post(f"{API_URL}/PredictItem", json={"text": txt})
-          if r.status_code == 200:
-            st.success("По стилю написания наиболее близок вам:")
-            st.write(r.json())
-          res = requests.post(f"{API_URL}/PredictItemProba", json={"text": txt})
-          if res.status_code == 200:
-            pred = res.json()
-            st.success("Самые близкие вам авторы в процентах:")
-            for author, proba in pred.items():
-              st.write(f"{author}: {proba:.4f}")
-        else:
-          st.warning("Введите текст для предсказания")
+          if txt:
+              r = requests.post(f"{API_URL}/PredictItem", json={"text": txt})
+              if r.status_code == 200:
+                st.success("По стилю написания наиболее близок вам:")
+                st.write(r.json())
+              res = requests.post(f"{API_URL}/PredictItemProba", json={"text": txt})
+              if res.status_code == 200:
+                pred = res.json()
+                st.success("Самые близкие вам авторы в процентах:")
+                for author, proba in pred.items():
+                  st.write(f"{author}: {proba:.4f}")
+          else:
+              st.warning("Введите текст для предсказания")
 
     # обработка датасета
     if type_inf == "Загрузить файл":
@@ -158,6 +176,7 @@ if choice == "Пользовательская часть":
 
         if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
           st.warning("Сначала выберите модель для предсказания")
+          st.warning("Для выбора перейдите на страницу: 'Информация про модели и данные'")
           if st.button("Перейти к выбору модели"):
             st.experimental_set_query_params(page="Информация про модели и данные")
           st.stop()
@@ -227,6 +246,7 @@ elif choice == "Обучить свою модель":
 
     if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
           st.warning("Сначала выберите модель для обучения")
+          st.warning("Для выбора перейдите на страницу: 'Информация про модели и данные'")
           if st.button("Перейти к выбору модели"):
             st.experimental_set_query_params(page="Информация про модели и данные")
           st.stop()
@@ -378,6 +398,7 @@ elif choice == "Обучить свою модель":
 
     if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
       st.warning("Сначала выберите активную модель для обучения")
+      st.warning("Для выбора перейдите на страницу: 'Информация про модели и данные'")
     if st.button("Перейти к выбору модели"):
       st.experimental_set_query_params(page="Информация про модели и данные")
     st.stop()
