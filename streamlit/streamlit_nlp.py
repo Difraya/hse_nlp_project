@@ -142,11 +142,11 @@ if choice == "Пользовательская часть":
               r = requests.post(f"{API_URL}/PredictItem", json={"text": txt})
               if r.status_code == 200:
                 st.success("По стилю написания наиболее близок вам:")
-                st.write(r.json())
+                st.write(r.json()['author'])
               res = requests.post(f"{API_URL}/PredictItemProba", json={"text": txt})
               if res.status_code == 200:
                 pred = res.json()
-                st.success("Самые близкие вам авторы в процентах:")
+                st.success("Самые близкие вам авторы:")
                 for author, proba in pred.items():
                   st.write(f"{author}: {proba:.4f}")
           else:
