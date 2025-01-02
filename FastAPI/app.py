@@ -542,8 +542,7 @@ async def train_model(
           status_code=HTTPStatus.OK)
 async def learning_curves(
     request: str = Form(
-        '{"hyperparameters": {"random_state": 42, "max_iter": 1000, \
-        "tol": 1e-4}}',
+        '{}',
         description="Dict of hyperparameters as JSON string"),
         file: UploadFile = File()):
     """
