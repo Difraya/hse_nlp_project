@@ -231,191 +231,161 @@ elif choice == "Информация про модели и данные":
     else:
         st.error("Нет доступных моделей.")
 
-elif choice == "Обучить свою модель":
+elif choice == "Обучи свою модель":
     st.title("Обучить свою модель")
 
     if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
-          st.warning("Сначала выберите модель для обучения")
-          st.warning("Для выбора перейдите на страницу: 'Информация про модели и данные'")
-          if st.button("Перейти к выбору модели"):
+        st.warning("Сначала выберите модель для обучения")
+        st.warning("Для выбора перейдите на страницу: 'Информация про модели и данные'")
+        if st.button("Перейти к выбору модели"):
             st.experimental_set_query_params(page="Информация про модели и данные")
-          st.stop()
+        st.stop()
 
     st.write(f"Для обучения вы используете модель: **{st.session_state['selected_model']}**")
 
     if st.session_state['selected_model'] == 'model1':
-          st.warning(
-              "На обучение model1 уходит слишком много времени. "
-              "Активируйте другую модель из списка."
-              )
-          if st.button("Перейти к выбору модели"):
+        st.warning(
+            "На обучение model1 уходит слишком много времени. "
+            "Активируйте другую модель из списка."
+        )
+        if st.button("Перейти к выбору модели"):
             st.experimental_set_query_params(page="Информация про модели и данные")
-          st.stop()
+        st.stop()
 
-    train_file = st.file_uploader("Загрузите тренировочный датасет (файл формата Parquet)", type=['parquet'])
-    test_file = st.file_uploader("Загрузите тестовый датасет (файл формата Parquet)", type=['parquet'])
+    train_file = st.file_uploader("Загрузите тренировочный датасет (Parquet)", type=['pq'])
+    test_file = st.file_uploader("Загрузите тестовый датасет (Parquet)", type=['pq'])
 
-    # выбор гиперпараметров
     st.header("Настройка гиперпараметров")
     random_state = st.number_input("random_state", value=42)
     max_iter = st.number_input("max_iter", value=1000, min_value=100, step=100)
     tol = st.number_input("tol", value=1e-4, format="%.1e")
 
     if st.button("Запуск обучения"):
-      if train_file is not None and test_file is not None:
-        try:
-          train_df = pd.read_parquet(train_file)
-          test_df = pd.read_parquet(test_file)
-          if train_df.shape[1] != test_df.shape[1]:
-            st.error("Размеры тестового и тренировочного датасетов не совпадают")
-            st.stop()
-          if 'text' not in train_df.columns or 'author' not in train_df.columns:
-            st.error("Тренировочный датасет должен содержать колонки 'text' и 'author'")
-            st.stop()
-          if 'text' not in test_df.columns or 'author' not in test_df.columns:
-            st.error("Тестовый датасет должен содержать колонки 'text' и 'author'")
-            st.stop()
+        if train_file is not None and test_file is not None:
+            try:
+                train_df = pd.read_parquet(train_file)
+                test_df = pd.read_parquet(test_file)
+                hyperparameters = {
+                    "hyperparameters": {
+                        "random_state": random_state,
+                        "max_iter": max_iter,
+                        "tol": tol
+                    }
+                }
+                params = {'request': json.dumps(hyperparameters)}
 
-          hyperparameters = {
-              "hyperparameters": {
-                  "random_state": random_state,
-                  "max_iter": max_iter,
-                  "tol": tol
-              }
-          }
-          params = {'request': json.dumps(hyperparameters)}
+                train_file.seek(0)
+                test_file.seek(0)
+                files = {"train_file": train_file, "test_file": test_file}
 
-          train_file.seek(0)
-          test_file.seek(0)
+                response = requests.post(f"{API_URL}/train_model", data=params, files=files)
+                st.write("Идет обучение...")
 
-          files = {"train_file": train_file, "test_file": test_file}
+                if response.status_code == 200:
+                    result = response.json()
+                    st.success("Модель обучена")
+                    st.write(f"**ID модели:** {result['model_id']}")
+                    st.write(f"**Время обучения:** {result['execution_time']}")
+                    st.write(f"**Accuracy:** {result['accuracy']}")
+                    st.write(f"**Precision:** {result['precision']}")
+                    st.write(f"**Recall:** {result['recall']}")
+                    st.write(f"**F1 Score:** {result['f1']}")
+                elif response.status_code == 404:
+                    st.error(response.json()['detail'])
+                else:
+                    st.error(f"Ошибка при обучении: {response.status_code}")
 
-          response = requests.post(f"{API_URL}/train_model", data=params, files=files)
-          st.write("Идет обучение...")
-          if response.status_code == 200:
-            result = response.json()
-            st.success("Модель обучена")
-            st.write(f"**ID модели:** {result['model_id']}")
-            st.write(f"**Время обучения:** {result['execution_time']}")
-            st.write(f"**Accuracy:** {result['accuracy']}")
-            st.write(f"**Precision:** {result['precision']}")
-            st.write(f"**Recall:** {result['recall']}")
-            st.write(f"**F1 Score:** {result['f1']}")
-          elif response.status_code == 404:
-            st.error(response.json()['detail'])
-          else:
-            st.error(f"Ошибка при обучении: {response.status_code}")
-        except Exception as e:
-            st.error(f"Ошибка при обработке данных: {str(e)}")
-    else:
-        st.warning("Загрузите оба файла (тренировочный и тестовый).")
-
-
+            except Exception as e:
+                st.error(f"Ошибка при обработке данных: {str(e)}")
+        else:
+            st.warning("Загрузите оба файла (тренировочный и тестовый).")
 
     st.title("Построение кривых обучения")
+    file = st.file_uploader("Загрузите датасет (Parquet) для кривых обучения", type=['pq'])
 
-    if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
-          st.warning("Сначала выберите модель для обучения")
-          if st.button("Перейти к выбору модели"):
-            st.experimental_set_query_params(page="Информация про модели и данные")
-          st.stop()
-
-    st.write(f"Для построения кривых обучения вы используете модель: **{st.session_state['selected_model']}**")
-
-    file = st.file_uploader("Загрузите датасет для обучения (файл формата Parquet)", type=["parquet"])
-
-    st.header("Настройка гиперпараметров")
-    random_state = st.number_input("random_state", value=42)
-    max_iter = st.number_input("max_iter", value=1000, min_value=100, step=100)
-    tol = st.number_input("tol", value=1e-4, format="%.1e")
+    st.header("Настройка гиперпараметров (learning curve)")
+    random_state = st.number_input("random_state", value=42, key="lc_rs")
+    max_iter = st.number_input("max_iter", value=1000, min_value=100, step=100, key="lc_max_iter")
+    tol = st.number_input("tol", value=1e-4, format="%.0e", key="lc_tol")
 
 
     if st.button("Построить кривые обучения"):
-      if file is not None:
-        try:
-          data = pd.read_parquet(file)
-          if 'text' not in data.columns or 'author' not in data.columns:
-            st.error("Датасет должен содержать колонки 'text' и 'author'.")
-            st.stop()
-
-          hyperparameters = {
-                "hyperparameters": {
-                    "random_state": random_state,
-                    "max_iter": max_iter,
-                    "tol": tol
+        if file is not None:
+            try:
+                data = pd.read_parquet(file)
+                hyperparameters = {
+                    "hyperparameters": {
+                        "random_state": random_state,
+                        "max_iter": max_iter,
+                        "tol": tol
+                    }
                 }
-            }
-          params = {'request': json.dumps(hyperparameters)}
+                params = {'request': json.dumps(hyperparameters)}
+                file.seek(0)
+                files = {'file': file}
+                response = requests.post(f"{API_URL}/LearningCurve", data=params, files=files)
 
-          file.seek(0)
-          files = {'file': file}
-          response = requests.post(f"{API_URL}/LearningCurve", data=params, files=files)
+                if response.status_code == 200:
+                    result = response.json()
+                    train_sizes = result['train_sizes']
+                    train_scores = result['train_scores']
+                    test_scores = result['test_scores']
+                    st.subheader("Кривые обучения")
 
-          if response.status_code == 200:
-            result = response.json()
-            train_sizes = result['train_sizes']
-            train_scores = result['train_scores']
-            test_scores = result['test_scores']
-            st.subheader("Кривые обучения")
-            train_mean = [sum(scores) / len(scores) for scores in train_scores]
-            test_mean = [sum(scores) / len(scores) for scores in test_scores]
+                    train_mean = [sum(scores)/len(scores) for scores in train_scores]
+                    test_mean = [sum(scores)/len(scores) for scores in test_scores]
 
-            df = pd.DataFrame({
-                    "Train Size": train_sizes * 2,
-                    "Score": train_mean + test_mean,
-                    "Type": ["Train"] * len(train_sizes) + ["Test"] * len(train_sizes)
-                })
+                    df = pd.DataFrame({
+                        "Train Size": train_sizes * 2,
+                        "Score": train_mean + test_mean,
+                        "Type": ["Train"]*len(train_sizes) + ["Test"]*len(train_sizes)
+                    })
 
-            fig = px.line(df, x="Train Size", y="Score", color="Type", title="Кривые обучения (Train/Test)")
-            st.plotly_chart(fig, use_container_width=True)
-            st.write("Детализация результатов:")
-            st.write(pd.DataFrame({
-                    "Train Size": train_sizes,
-                    "Train Mean Accuracy": train_mean,
-                    "Test Mean Accuracy": test_mean
-                }))
+                    fig = px.line(df, x="Train Size", y="Score", color="Type",
+                                  title="Кривые обучения (Train/Test)")
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.write("Детализация результатов:")
+                    st.write(pd.DataFrame({
+                        "Train Size": train_sizes,
+                        "Train Mean Accuracy": train_mean,
+                        "Test Mean Accuracy": test_mean
+                    }))
 
-          elif response.status_code == 404:
-            st.error(response.json()['detail'])
-          else:
-            st.error(f"Ошибка при расчёте кривых обучения: {response.status_code}")
-        except Exception as e:
-          st.error(f"Ошибка при обработке данных: {str(e)}")
-    else:
-        st.warning("Загрузите файл для получения кривых обучения.")
+                elif response.status_code == 404:
+                    st.error(response.json()['detail'])
+                else:
+                    st.error(f"Ошибка при расчёте кривых обучения: {response.status_code}")
+            except Exception as e:
+                st.error(f"Ошибка при обработке данных: {str(e)}")
+        else:
+            st.warning("Загрузите файл для кривых обучения.")
 
-    st.title("Обучение модели SVC")
+    st.title("Частичное дообучение (partial_fit)")
 
-    if 'selected_model' not in st.session_state or not st.session_state['selected_model']:
-      st.warning("Сначала выберите активную модель для обучения")
-      st.warning("Для выбора перейдите на страницу: 'Информация про модели и данные'")
-    if st.button("Перейти к выбору модели"):
-      st.experimental_set_query_params(page="Информация про модели и данные")
-    st.stop()
-
-    st.write(f"Выбранная активная модель: **{st.session_state['selected_model']}**")
-
-    train_file = st.file_uploader("Загрузите датасет для дообучения (файл формата Parquet)", type=["parquet"])
+    train_file_partial = st.file_uploader(
+        "Загрузите датасет для дообучения (Parquet)",
+        type=['pq'],
+        key="partial_fit_file"
+    )
 
     if st.button("Запустить обучение модели SVC"):
-      if train_file is not None:
-        try:
-            data = pd.read_parquet(train_file)
-            if 'X' not in data.columns or 'y' not in data.columns:
-                st.error("Файл должен содержать колонки 'X' и 'y'")
-                st.stop()
-            train_file.seek(0)
-            files = {'request_file': train_file}
-            params = {'id': st.session_state['selected_model']}
-            response = requests.post(f"{API_URL}/partial_fit", data=params, files=files)
-            if response.status_code == 200:
-                result = response.json()
-                st.success(result["message"])
-            elif response.status_code == 400:
-                st.error(response.json()['detail'])
-            else:
-                st.error(f"Ошибка при дообучении модели: {response.status_code}")
-        except Exception as e:
-            st.error(f"Ошибка при обработке данных: {str(e)}")
-    else:
-        st.warning("Загрузите файл с новыми данными для дообучения.")
+        if train_file_partial is not None:
+            try:
+                data = pd.read_parquet(train_file_partial)
+                train_file_partial.seek(0)
+                files = {'request_file': train_file_partial}
+                params = {'model_id': st.session_state['selected_model']}
+
+                response = requests.post(f"{API_URL}/partial_fit", data=params, files=files)
+
+                if response.status_code == 200:
+                    result = response.json()
+                    st.success(result["message"])
+                elif response.status_code == 400:
+                    st.error(response.json()['detail'])
+                else:
+                    st.error(f"Ошибка при дообучении модели: {response.status_code}")
+            except Exception as e:
+                st.error(f"Ошибка при обработке данных: {str(e)}")
+        else:
+            st.warning("Загрузите файл с новыми данными для дообучения.")
