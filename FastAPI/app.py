@@ -29,7 +29,7 @@ logger = logging.getLogger("app_logger")
 logger.setLevel(logging.DEBUG)
 
 # Настройка обработчика файла с ротацией логов
-handler = RotatingFileHandler("logs/app.log",
+handler = RotatingFileHandler("logs/app.log", encoding='utf-8',
                               maxBytes=50 * 1024 * 1024, backupCount=5)
 handler.setLevel(logging.DEBUG)
 
