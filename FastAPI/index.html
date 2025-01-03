@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FastAPI AJAX Interface</title>
     <script>
+        // Функция для получения списка моделей и обновления выпадающего списка
         async function fetchModelsList() {
             try {
                 const response = await fetch('http://localhost:8000/ModelsList');
@@ -12,16 +13,49 @@
                     throw new Error('Network response was not ok ' + response.statusText);
                 }
                 const data = await response.json();
-                const modelsListDiv = document.getElementById('modelsList');
-                modelsListDiv.innerHTML = '';
+
+                // Заполнение выпадающего списка моделями
+                const modelSelect = document.getElementById('modelSelect');
+                modelSelect.innerHTML = '';
                 data.forEach(model => {
-                    modelsListDiv.innerHTML += `<li>${model.name}: ${model.description}</li>`;
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = `${model.name}: ${model.description}`;
+                    modelSelect.appendChild(option);
                 });
             } catch (error) {
                 console.error('Fetch error: ', error);
             }
         }
 
+        // Функция для отправки запроса на активацию выбранной модели
+        async function setActiveModel() {
+            const selectedModel = document.getElementById('modelSelect').value;
+            console.log("Selected Model ID: ", selectedModel);
+        
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/setModel?mod_id=${encodeURIComponent(selectedModel)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json' // Указывем, что ожидаем ответ в формате JSON
+                    },
+                    body: '' // Соответственно вашим curl-запросом, тело запроса пустое
+                });
+        
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error('Error: ' + errorData.detail);
+                }
+        
+                const result = await response.json();
+                document.getElementById('setModelResult').innerText = result.message;
+            } catch (error) {
+                console.error('Error during setting model:', error);
+                document.getElementById('setModelResult').innerText = 'Error occurred while setting the model';
+            }
+        }
+
+        // Остальные функции не изменялись
         async function predictAuthor() {
             const textInput = document.getElementById('textInput').value;
             try {
@@ -39,23 +73,68 @@
                 document.getElementById('result').innerText = `Prediction: ${result.author}`;
             } catch (error) {
                 console.error('Error during prediction:', error);
+                document.getElementById('result').innerText = 'Error occurred during prediction';
             }
         }
 
+        async function uploadAndPredict() {
+            const inputFile = document.getElementById('fileInput').files[0];
+            if (!inputFile) {
+                console.error('No file selected');
+                document.getElementById('uploadResult').innerText = 'No file selected';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('request', inputFile);
+
+            try {
+                const response = await fetch('http://localhost:8000/PredictItemFile', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    throw new Error('Network response was not ok ' + response.statusText);
+                }
+                const result = await response.json();
+                document.getElementById('uploadResult').innerText = `File Prediction: ${result.author}`;
+            } catch (error) {
+                console.error('Error during file prediction:', error);
+                document.getElementById('uploadResult').innerText = 'Error occurred during file prediction';
+            }
+        }
+
+        // Загружаем список моделей при загрузке страницы
         window.onload = fetchModelsList;
     </script>
 </head>
 <body>
     <h1>FastAPI AJAX Interface</h1>
+    
     <div>
         <h2>Available Models</h2>
-        <ul id="modelsList"></ul>
+        <select id="modelSelect"></select>
     </div>
+
+    <div>
+        <h2>Set Active Model</h2>
+        <p>Select a model from the list above and set it as active:</p>
+        <button onclick="setActiveModel()">Set Model</button>
+        <div id="setModelResult"></div>
+    </div>
+
     <div>
         <h2>Predict Author</h2>
         <textarea id="textInput" rows="4" cols="50" placeholder="Enter text for prediction"></textarea><br>
         <button onclick="predictAuthor()">Submit</button>
         <div id="result"></div>
+    </div>
+
+    <div>
+        <h2>Upload File for Prediction</h2>
+        <input type="file" id="fileInput" accept=".txt" /><br>
+        <button onclick="uploadAndPredict()">Upload and Predict</button>
+        <div id="uploadResult"></div>
     </div>
 </body>
 </html>
