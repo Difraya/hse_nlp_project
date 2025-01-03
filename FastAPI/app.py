@@ -578,7 +578,7 @@ async def train_model(
           status_code=HTTPStatus.OK)
 async def partial_fit(request_file: UploadFile = File()) -> Dict[str, str]:
     """
-    Частично дообучает модель SVM с использованием новых данных.
+    Частично дообучает модель SVG с использованием новых данных.
     Параметры:
         request_file: Файл, содержащий новые обучающие данные.
     Возвращает:
