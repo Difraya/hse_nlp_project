@@ -371,8 +371,5 @@ API-интеграция:
 - Multipart/form-data для файлов.
 
 
-
-
-
-
+![Demo](images/streamlit.gif)
 
