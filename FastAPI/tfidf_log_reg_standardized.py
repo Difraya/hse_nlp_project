@@ -4,7 +4,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import learning_curve
 import joblib
+import numpy as np
 
 
 def model3(X_train, y_train, X_test, y_test,
@@ -79,7 +81,33 @@ def model3(X_train, y_train, X_test, y_test,
 - Полнота (Recall): {metrics['recall']}
 - F1-мера: {metrics['f1']}''')
 
+    # Построение кривой обучения
+    train_sizes, train_scores, test_scores = learning_curve(
+        tfidf_log_reg_standardized,
+        X_train,
+        y_train,
+        cv=2,
+        scoring='accuracy',
+        train_sizes=np.linspace(0.1, 1.0, 5)
+    )
+
+    # Среднее и стандартное отклонение для кривой обучения
+    train_scores_mean = np.mean(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+
+    learning_curve_data = {
+        'train_sizes': train_sizes.tolist(),
+        'train_scores_mean': train_scores_mean.tolist(),
+        'test_scores_mean': test_scores_mean.tolist()
+    }
+
+    # Вывод данныx кривой обучения
+    print(f'''Получены данные кривой обучения:
+- train_sizes: {learning_curve_data['train_sizes']},
+- train_scores_mean: {learning_curve_data['train_scores_mean']},
+- test_scores_mean: {learning_curve_data['test_scores_mean']}''')
+
     # Сохранение модели
     joblib.dump(tfidf_log_reg_standardized, model_path)
 
-    return (metrics, model_path)
+    return (metrics, model_path, learning_curve_data)

@@ -3,9 +3,12 @@ from tqdm import tqdm
 
 # Список команд для загрузки файлов с Kaggle
 commands = [
-    "kaggle datasets download vorvit/books-eng --file df_test.pq --force",
-    "kaggle datasets download vorvit/books-eng --file df_train.pq --force",
+    # "kaggle datasets download vorvit/books-eng --file df_test.pq --force",
+    # "kaggle datasets download vorvit/books-eng --file df_train.pq --force",
     "kaggle datasets download vorvit/books-eng --file pipeline.joblib --force",
+    "kaggle datasets download vorvit/books-eng --file train.pq --force",
+    "kaggle datasets download vorvit/books-eng --file test.pq --force",
+    # "kaggle datasets download vorvit/books-eng --file filtered_df.pq --force",
 ]
 
 

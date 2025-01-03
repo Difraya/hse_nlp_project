@@ -463,7 +463,8 @@ async def train_model(
         train_file: Обучающий датасет в формате parquet.
         test_file: Тестовый датасет в формате parquet.
     Возвращает:
-        Словарь с ID модели, временем выполнения и метриками обучения.
+        Словарь с ID модели, временем выполнения, метриками обучения
+        и данными кривой обучения.
     """
 
     global active_model_id
@@ -481,7 +482,9 @@ async def train_model(
 
     # Чтение данных из файлов
     train_data = await read_parquet_file(train_file)
+    # train_data = train_data[:80]
     test_data = await read_parquet_file(test_file)
+    # test_data = test_data[:3]
 
     X_train, y_train = train_data['text'], train_data['author']
     X_test, y_test = test_data['text'], test_data['author']
@@ -500,7 +503,7 @@ async def train_model(
 
     start_time = time.perf_counter()
     try:
-        _model = train_function(
+        metrics, model_path, learning_curve_data = train_function(
             X_train=X_train,
             y_train=y_train,
             X_test=X_test,
@@ -519,7 +522,6 @@ async def train_model(
                 mod_id, execution_time)
 
     # Добавляем новую модель в словарь
-    metrics, model_path = _model
     initial_models_list['model5'] = {
         'model': joblib.load(model_path),
         'description': 'Новая обученная модель'
@@ -533,102 +535,34 @@ async def train_model(
         "accuracy": str(metrics['accuracy']),
         "precision": str(metrics['precision']),
         "recall": str(metrics['recall']),
-        "f1": str(metrics['f1'])
+        "f1": str(metrics['f1']),
+        "train_sizes": learning_curve_data['train_sizes'],
+        "train_scores_mean": learning_curve_data['train_scores_mean'],
+        "test_scores_mean": learning_curve_data['test_scores_mean']
     }
-
-
-# Эндпоинт для получения кривых обучения
-@app.post('/LearningCurve', response_model=LearningCurveResponse,
-          status_code=HTTPStatus.OK)
-async def learning_curves(
-    request: str = Form(
-        '{}',
-        description="Dict of hyperparameters as JSON string"),
-        file: UploadFile = File()):
-    """
-    Рассчитывает кривую обучения для активной модели на основе предоставленных
-    данных и гиперпараметров.
-    Параметры:
-        request: JSON строка, содержащая гиперпараметры для расчета.
-        file: Датасет в формате parquet для расчета кривой обучения.
-    Возвращает:
-        Ответ, содержащий размеры тренировочных данных,
-        их оценки и тестовые оценки.
-    """
-    # Проверяем, загружена ли модель
-    if not active_model_id:
-        logger.error("Нет активной модели для расчета кривой обучения.")
-        raise HTTPException(status_code=404, detail="No active models!")
-
-    # Загружаем данные
-    data = await read_parquet_file(file)
-
-    X_train, y_train = data['text'], data['author']
-
-    # Инициализируем модель
-    model = copy.deepcopy(initial_models_list[active_model_id]['model'])
-
-    # Принимаем и валидируем гиперпараметры
-    try:
-        request_data = json.loads(request)
-        hyperparameters = request_data.get('hyperparameters', {})
-    except json.JSONDecodeError as e:
-        logger.error("Ошибка декодирования JSON для гиперпараметров: %s", e)
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid JSON format in 'request': {e}") from e
-
-    # Передаем гиперпараметры в модель
-    if active_model_id == 'model1':
-        model[-1].estimator.set_params(**hyperparameters)
-    else:
-        model[-1].set_params(**hyperparameters)
-
-    # Рассчитываем данные для learning_curve
-    try:
-        train_sizes, train_scores, test_scores = learning_curve(
-            model, X_train, y_train,
-            train_sizes=np.linspace(0.1, 1.0, 5),
-            cv=2, scoring='accuracy', n_jobs=-1)
-    except Exception as e:
-        logger.error('Ошибка при вычислении кривой обучения: %s', e)
-        raise HTTPException(status_code=500,
-                            detail=f'Error fitting learning curve. {e}') from e
-
-    # Приводим результаты learing curve к нужному типу
-    train_sizes, train_scores, test_scores = train_sizes.tolist(), \
-        train_scores.tolist(), test_scores.tolist()
-
-    # Возвращаем сообщение
-    response = LearningCurveResponse(
-        train_sizes=train_sizes,
-        train_scores=train_scores,
-        test_scores=test_scores)
-    logger.info('Кривая обучения успешно рассчитана.')
-
-    return response
 
 
 # Эндпоинт для дообучения модели SVG
 @app.post("/partial_fit", response_model=Dict[str, str],
           status_code=HTTPStatus.OK)
-async def partial_fit(
-    mod_id: Annotated[str, Form()],
-    request_file: UploadFile = File()
+async def partial_fit(request_file: UploadFile = File()
 ) -> Dict[str, str]:
     """
     Частично дообучает модель SVM с использованием новых данных.
     Параметры:
-        model_id: ID модели, которую нужно обновить.
         request_file: Файл, содержащий новые обучающие данные.
     Возвращает:
         Сообщение, подтверждающее успешное обновление модели.
     """
-    if mod_id not in initial_models_list:
-        logger.error('Модель с id "%s" не существует!', mod_id)
+    mod_id = active_model_id
+
+    if mod_id != "model4":
+        logger.error('Частичное обучение поддерживается только для model4. \
+Активируйте model4, чтобы продолжить.')
         raise HTTPException(
             status_code=400,
-            detail=f'Model with id "{mod_id}" doesn\'t exist!')
+            detail='Partial training is supported only for model4. \
+Please activate model4 to proceed.')
 
     pipeline = initial_models_list[mod_id]['model']
 
@@ -663,7 +597,51 @@ async def partial_fit(
                 mod_id)
 
     return {"message": f"Model with id '{mod_id}' \
-            successfully updated with new data."}
+successfully updated with new data."}
+
+
+@app.post("/fine_tuning", response_model=Dict[str, str],
+          status_code=HTTPStatus.OK)
+async def fine_tuning(request_file: UploadFile = File()) -> Dict[str, str]:
+    """
+    Выполняет fine-tuning активной модели, используя новые данные.
+    Параметры:
+        request_file: Файл, содержащий новые обучающие данные.
+    Возвращает:
+        Сообщение, подтверждающее успешное обновление всех моделей.
+    """
+    global active_model_id
+    mod_id = active_model_id
+    model = get_model(mod_id)['model']
+    
+    # Считываем данные для обучения
+    train_data = await read_parquet_file(request_file)
+    # train_data = train_data[:50]
+    X_new, y_new = train_data['text'], train_data['author']
+
+    # Адаптация модели на новом наборе данных
+    model.warm_start = True
+    model.fit(X_new, y_new)
+
+    # Адаптация модели на новом наборе данных
+    try:
+        model.warm_start = True
+        model.fit(X_new, y_new)
+        joblib.dump(model, f'{mod_id}_f-t.joblib')
+        logger.info("Модель с id '%s' успешно дообучена с новыми данными.", mod_id)
+    except Exception as e:
+        logger.error('Ошибка при дообучении модели с id %s: %s', mod_id, e)
+
+    # Добавляем новую модель в словарь
+    initial_models_list['model6'] = {
+        'model': joblib.load(f'{mod_id}_f-t.joblib'),
+        'description': 'Новая дообученная модель'
+    }
+
+    active_model_id = 'model6'
+
+    return {"message": "All models successfully updated with new data."}
+
 
 # Запуск приложения
 if __name__ == '__main__':
