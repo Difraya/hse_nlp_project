@@ -1,0 +1,16 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+# Установим зависимости
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Запуск скрипта для загрузки файлов
+RUN python download_files.py
+
+# Запускаем FastAPI с Uvicorn
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
