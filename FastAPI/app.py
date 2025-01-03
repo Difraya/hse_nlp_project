@@ -1,22 +1,19 @@
 from contextlib import asynccontextmanager
 from http import HTTPStatus
-from typing import List, Dict, Union, Any, Annotated
+from typing import List, Dict, Union, Any
 import json
 import time
 import io
-import copy
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
-from sklearn.model_selection import learning_curve
 from pydantic import BaseModel
 import joblib
 import uvicorn
 import pandas as pd
-import numpy as np
 from ngram_naive_bayes import model2
 from tfidf_log_reg_standardized import model3
 from SGDClassifier import model4
@@ -122,6 +119,7 @@ async def lifespan(app: FastAPI):
 
 # Регистрируем lifespan для приложения
 app.router.lifespan_context = lifespan
+
 
 # Задаем различные модели запросов и ответов
 class PredictItemRequest(BaseModel):
@@ -561,7 +559,6 @@ async def train_model(
     print(learning_curve_data['train_scores_mean'])
     print(learning_curve_data['test_scores_mean'])
 
-
     response = TrainModelResponse(
         mod_id='model5',
         execution_time=f"{execution_time} seconds",
@@ -572,15 +569,14 @@ async def train_model(
         train_sizes=learning_curve_data['train_sizes'],
         train_scores_mean=learning_curve_data['train_scores_mean'],
         test_scores_mean=learning_curve_data['test_scores_mean'])
-    
+
     return response
 
 
 # Эндпоинт для дообучения модели SVG
 @app.post("/partial_fit", response_model=Dict[str, str],
           status_code=HTTPStatus.OK)
-async def partial_fit(request_file: UploadFile = File()
-) -> Dict[str, str]:
+async def partial_fit(request_file: UploadFile = File()) -> Dict[str, str]:
     """
     Частично дообучает модель SVM с использованием новых данных.
     Параметры:
@@ -647,7 +643,7 @@ async def fine_tuning(request_file: UploadFile = File()) -> Dict[str, str]:
     global active_model_id
     mod_id = active_model_id
     model = get_model(mod_id)['model']
-    
+
     # Считываем данные для обучения
     train_data = await read_parquet_file(request_file)
     # train_data = train_data[:50]
@@ -658,7 +654,8 @@ async def fine_tuning(request_file: UploadFile = File()) -> Dict[str, str]:
         model.warm_start = True
         model.fit(X_new, y_new)
         joblib.dump(model, f'{mod_id}_f-t.joblib')
-        logger.info("Модель с id '%s' успешно дообучена с новыми данными.", mod_id)
+        logger.info("Модель с id '%s' успешно дообучена с новыми данными.",
+                    mod_id)
     except Exception as e:
         logger.error('Ошибка при дообучении модели с id %s: %s', mod_id, e)
 
