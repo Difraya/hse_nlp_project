@@ -146,12 +146,12 @@ class PredictItemsProbaResponse(BaseModel):
 
 
 class TrainModelResponse(BaseModel):
-    model_id: str
+    mod_id: str
     execution_time: str
     accuracy: str
-    precision: str 
+    precision: str
     recall: str
-    f1: str 
+    f1: str
     train_sizes: List[Union[float, int]]
     train_scores_mean: List[Union[float, int]]
     test_scores_mean: List[Union[float, int]]
@@ -334,6 +334,15 @@ async def predict_item_proba(request: PredictItemRequest) -> Dict[str, float]:
     """
     mod_id = active_model_id
     model = get_model(mod_id)
+
+    if mod_id == 'model4':
+        # Выдаем сообщение об ошибке, если активна model4
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Модель 'model4' не может предсказывать вероятности. "
+                   "Пожалуйста, выберите другую модель."
+        )
+
     probabilities = await predict_proba(model['model'], request.text)
     author_probas = dict(zip(model['model'].classes_, probabilities))
 
@@ -360,6 +369,15 @@ async def predict_item_proba_file(request: UploadFile = File()) \
     contents = await request.read()
     mod_id = active_model_id
     model = get_model(mod_id)
+
+    if mod_id == 'model4':
+        # Выдаем сообщение об ошибке, если активна model4
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Модель 'model4' не может предсказывать вероятности. "
+                   "Пожалуйста, выберите другую модель."
+        )
+
     probabilities = await predict_proba(model['model'],
                                         contents.decode('utf-8'))
     author_probas = dict(zip(model['model'].classes_, probabilities))
@@ -411,6 +429,14 @@ async def predict_items_proba(request: PredictItemsRequest) \
         PredictItemsProbaResponse: Ответ с вероятностями
         для каждого текста и класса.
     """
+    if active_model_id == 'model4':
+        # Выдаем сообщение об ошибке, если активна model4
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="Модель 'model4' не может предсказывать вероятности. "
+                   "Пожалуйста, выберите другую модель."
+        )
+
     model = get_model(active_model_id)
     texts_series = pd.Series(list(request.texts.values()))
     pred_proba = model['model'].predict_proba(texts_series)
@@ -536,8 +562,16 @@ async def train_model(
     print(learning_curve_data['test_scores_mean'])
 
 
-    response = TrainModelResponse(model_id='model5', execution_time=f"{execution_time} seconds", accuracy=str(metrics['accuracy']), precision=str(metrics['precision']), recall=str(metrics['recall']), f1=str(metrics['f1']),\
-                                  train_sizes=learning_curve_data['train_sizes'], train_scores_mean=learning_curve_data['train_scores_mean'], test_scores_mean=learning_curve_data['test_scores_mean'])
+    response = TrainModelResponse(
+        mod_id='model5',
+        execution_time=f"{execution_time} seconds",
+        accuracy=str(metrics['accuracy']),
+        precision=str(metrics['precision']),
+        recall=str(metrics['recall']),
+        f1=str(metrics['f1']),
+        train_sizes=learning_curve_data['train_sizes'],
+        train_scores_mean=learning_curve_data['train_scores_mean'],
+        test_scores_mean=learning_curve_data['test_scores_mean'])
     
     return response
 
