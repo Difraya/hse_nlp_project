@@ -145,10 +145,16 @@ class PredictItemsProbaResponse(BaseModel):
     response: Dict[str, Dict[str, float]]
 
 
-class LearningCurveResponse(BaseModel):
+class TrainModelResponse(BaseModel):
+    model_id: str
+    execution_time: str
+    accuracy: str
+    precision: str 
+    recall: str
+    f1: str 
     train_sizes: List[Union[float, int]]
-    train_scores: List[List[Union[float, int]]]
-    test_scores: List[List[Union[float, int]]]
+    train_scores_mean: List[Union[float, int]]
+    test_scores_mean: List[Union[float, int]]
 
 
 # Функция для получения модели по её идентификатору
@@ -445,10 +451,9 @@ model_functions = {
 
 
 # Эндпоинт для обучения активной модели
-@app.post("/train_model")
+@app.post("/train_model", response_model=TrainModelResponse)
 async def train_model(
-    request: str = Form('{"hyperparameters": {"random_state": 42, \
-"max_iter": 1000, "tol": 1e-4}}',
+    request: str = Form('{"hyperparameters": {}}',
                         description="Dict of hyperparameters as JSON string"),
     train_file: UploadFile = File(...,
                                   description="Training dataset in pq format"),
@@ -529,17 +534,14 @@ async def train_model(
 
     active_model_id = 'model5'
 
-    return {
-        "model_id": 'model5',
-        "execution_time": f"{execution_time} seconds",
-        "accuracy": str(metrics['accuracy']),
-        "precision": str(metrics['precision']),
-        "recall": str(metrics['recall']),
-        "f1": str(metrics['f1']),
-        "train_sizes": learning_curve_data['train_sizes'],
-        "train_scores_mean": learning_curve_data['train_scores_mean'],
-        "test_scores_mean": learning_curve_data['test_scores_mean']
-    }
+    print(learning_curve_data['train_scores_mean'])
+    print(learning_curve_data['test_scores_mean'])
+
+
+    response = TrainModelResponse(model_id='model5', execution_time=f"{execution_time} seconds", accuracy=str(metrics['accuracy']), precision=str(metrics['precision']), recall=str(metrics['recall']), f1=str(metrics['f1']),\
+                                  train_sizes=learning_curve_data['train_sizes'], train_scores_mean=learning_curve_data['train_scores_mean'], test_scores_mean=learning_curve_data['test_scores_mean'])
+    
+    return response
 
 
 # Эндпоинт для дообучения модели SVG
@@ -618,10 +620,6 @@ async def fine_tuning(request_file: UploadFile = File()) -> Dict[str, str]:
     train_data = await read_parquet_file(request_file)
     # train_data = train_data[:50]
     X_new, y_new = train_data['text'], train_data['author']
-
-    # Адаптация модели на новом наборе данных
-    model.warm_start = True
-    model.fit(X_new, y_new)
 
     # Адаптация модели на новом наборе данных
     try:
