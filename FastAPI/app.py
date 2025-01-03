@@ -630,6 +630,7 @@ Please activate model4 to proceed.')
 successfully updated with new data."}
 
 
+# Эндпоинт для fine-tuning'а активной модели
 @app.post("/fine_tuning", response_model=Dict[str, str],
           status_code=HTTPStatus.OK)
 async def fine_tuning(request_file: UploadFile = File()) -> Dict[str, str]:
