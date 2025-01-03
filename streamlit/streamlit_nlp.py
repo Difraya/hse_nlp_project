@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 import re
 import json
 from collections import Counter
-
 from nltk import pos_tag
 from nltk.corpus import stopwords
 from nltk.util import ngrams
@@ -92,12 +91,18 @@ if choice == "Пользовательская часть":
           if text:
                 pos = get_pos(text)
                 df_pos = pd.DataFrame(sorted(pos.items(), key=lambda x: x[1], reverse=True), columns=['part_of_speech', 'count'])
-                fig, ax = plt.subplots(figsize=(10, 5))
-                sns.barplot(x=df_pos['part_of_speech'], y=df_pos['count'], ax=ax)
-                ax.set_xticks(ax.get_xticks())
-                ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
-                ax.set_title('Распределение частей речи')
-                st.pyplot(fig)
+                fig = px.bar(
+                    df_pos,
+                    x='part_of_speech',
+                    y='count',
+                    color='part_of_speech',
+                    labels={'part_of_speech': 'Часть речи', 'count': 'Частота'},
+                    title='Распределение частей речи'
+                )
+                fig.update_layout(
+                    xaxis_tickangle=-45,
+                )
+                st.plotly_chart(fig)
           else:
                 st.warning("Введите текст для анализа!")
 
@@ -116,13 +121,17 @@ if choice == "Пользовательская часть":
           if top_ngrams:
             labels = [' '.join(gram) for gram, count in top_ngrams]
             counts = [count for gram, count in top_ngrams]
-            fig, ax = plt.subplots()
-            ax.bar(labels, counts, color='skyblue')
-            ax.set_ylabel("Частота")
-            ax.set_title(f"Топ-3 {ngram_type.lower()}")
-            ax.set_xticks(range(len(labels)))
-            ax.set_xticklabels(labels, rotation=45, ha="right")
-            st.pyplot(fig)
+            fig = px.bar(
+                x=labels,
+                y=counts,
+                color=labels,
+                labels={'x': 'N-граммы', 'y': 'Частота'},
+                title=f'Топ-3 {ngram_type.lower()}'
+            )
+            fig.update_layout(
+                xaxis_tickangle=-45
+            )
+            st.plotly_chart(fig)
           else:
             st.write("Недостаточно данных для построения графика.")
 
@@ -130,7 +139,7 @@ if choice == "Пользовательская часть":
           x = [i[0] for i in w]
           y = [i[1] for i in w]
           df = pd.DataFrame({"Слово": x, "Частота": y})
-          fig = px.bar(df, x="Слово", y="Частота", title="Топ слов")
+          fig = px.bar(df, x="Слово", y="Частота", color="Слово", title="Топ слов")
           st.plotly_chart(fig, use_container_width=True)
 
         if st.button("Предсказать к каким авторам мой текст ближе"):
@@ -152,23 +161,74 @@ if choice == "Пользовательская часть":
               res = requests.post(f"{API_URL}/PredictItemProba", json={"text": txt})
               if res.status_code == 200:
                 pred = res.json()
+                pred_top3 = dict(list(pred.items())[:3])
                 st.success("Самые близкие вам авторы:")
-                for author, proba in pred.items():
+                for author, proba in pred_top3.items():
                   st.write(f"{author}: {proba:.4f}")
+                authors = list(pred_top3.keys())
+                values = list(pred_top3.values())
+                fig = px.pie(names=authors, values=values, title="Распределение вероятностей внутри топ-3 авторов")
+                st.plotly_chart(fig)
           else:
               st.warning("Введите текст для предсказания")
 
-    # обработка датасета
+    # обработка файла
     if type_inf == "Загрузить файл":
       upfile = st.file_uploader("Загрузите файл в формате txt для мультиинференса", type=["txt"])
 
       if upfile is not None:
         try:
-          data = upfile
+          data = upfile.getvalue().decode('utf-8')
+          st.subheader("Анализ и обработка текста")
+          st.write("В данном тексте:")
+          st.write(f"Общее количество слов: {len(data.split())}")
+          st.write(f"Количество уникальных слов: {len(set(data.split()))}")
+          st.write(f"Количество знаков препинания: {punctuation(data)}")
+
+          if st.checkbox("Удалить стоп-слова"):
+              text = del_stopwords(data)
+          else:
+              text = data
+
+          if text is not None:
+              ngram_type = st.selectbox("Выберите тип n-грамм:", ["Униграммы", "Биграммы", "Триграммы"])
+              if ngram_type == "Униграммы":
+                  n = 1
+              elif ngram_type == "Биграммы":
+                  n = 2
+              else:
+                  n = 3
+              ngrams_list = get_ngrams(text, n)
+              top_ngrams = most_common_ngrams(ngrams_list)
+              st.subheader(f"Самые популярные {ngram_type.lower()}:")
+
+              if top_ngrams:
+                  labels = [' '.join(gram) for gram, count in top_ngrams]
+                  counts = [count for gram, count in top_ngrams]
+                  fig = px.bar(
+                      x=labels,
+                      y=counts,
+                      color=labels,
+                      labels={'x': 'N-граммы', 'y': 'Частота'},
+                      title=f'Топ-3 {ngram_type.lower()}'
+                  )
+                  fig.update_layout(
+                      xaxis_tickangle=-45
+                  )
+                  st.plotly_chart(fig)
+              else:
+                  st.write("Недостаточно данных для построения графика.")
+
+              w = get_top_words(text)
+              x = [i[0] for i in w]
+              y = [i[1] for i in w]
+              df = pd.DataFrame({"Слово": x, "Частота": y})
+              fig = px.bar(df, x="Слово", y="Частота", color="Слово", title="Топ слов")
+              st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
           st.error(f"Ошибка при загрузке файла: {str(e)}")
 
-     # st.subheader("Анализ и обработка датасета")
+
 
       if st.button("Сделать предсказания по файлу"):
 
@@ -181,29 +241,37 @@ if choice == "Пользовательская часть":
 
         st.write(f"Для предсказаний вы используете модель: **{st.session_state['selected_model']}**")
 
-        pred_type = st.radio(
-            "Выберите тип предсказания:",
-            ["Обычное предсказание", "Предсказание с вероятностями"]
-        )
+      #  pred_type = st.radio(
+      #      "Выберите тип предсказания:",
+      #      ["Обычное предсказание", "Предсказание с вероятностями"]
+      #  )
 
         upfile.seek(0)
         files = {'request': upfile}
 
-        if pred_type == "Обычное предсказание":
-          response = requests.post(f"{API_URL}/PredictItemFile", files=files)
-          if response.status_code == 200:
-            prediction = response.json()
-            st.write(f"Результат предсказания: {prediction['author']}")
-          else:
-            st.error(f"Ошибка при предсказании: {response.status_code}")
+        #if st.checkbox("Обычное предсказание"):
+        response = requests.post(f"{API_URL}/PredictItemFile", files=files)
+        if response.status_code == 200:
+          prediction = response.json()
+          st.success(f"Результат предсказания: {prediction['author']}")
+        else:
+          st.error(f"Ошибка при предсказании: {response.status_code}")
 
-        elif pred_type == "Предсказание с вероятностями":
-          response = requests.post(f"{API_URL}/PredictItemProbaFile", files=files)
-          if response.status_code == 200:
+       # elif st.checkbox("Предсказание с вероятностями"):
+        response = requests.post(f"{API_URL}/PredictItemProbaFile", files=files)
+        if response.status_code == 200:
             prediction = response.json()
-            for author, prob in prediction.items():
+            prediction_top3 = dict(list(prediction.items())[:3])
+            st.success("Самые близкие вам авторы:")
+            for author, proba in prediction_top3.items():
+                st.write(f"{author}: {proba:.4f}")
+            authors = list(prediction_top3.keys())
+            values = list(prediction_top3.values())
+            fig = px.pie(names=authors, values=values, title="Распределение вероятностей внутри топ-3 авторов")
+            st.plotly_chart(fig)
+            for author, prob in prediction_top3.items():
               st.write(f"{author}: {prob:.4f}")
-          else:
+        else:
             st.error(f"Ошибка при предсказании: {response.status_code}")
 
 # Вывод списка моделей
