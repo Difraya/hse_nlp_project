@@ -247,9 +247,7 @@ async def models_list() -> List[Dict[str, str]]:
 
 # Эндпоинт для установки активной модели
 @app.post("/setModel", status_code=HTTPStatus.OK)
-async def set_model(
-    mod_id: Annotated[str, Query(..., enum=list(initial_models_list.keys()))]
-) -> Dict[str, str]:
+async def set_model(mod_id: str) -> Dict[str, str]:
     """
     Устанавливает активную модель по её идентификатору.
     Параметры:
