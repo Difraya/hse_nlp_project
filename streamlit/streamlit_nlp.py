@@ -252,7 +252,7 @@ elif choice == "Обучи свою модель":
     train_file = st.file_uploader("Загрузите тренировочный датасет (Parquet)", type=['pq'])
     test_file = st.file_uploader("Загрузите тестовый датасет (Parquet)", type=['pq'])
     st.header("Настройка гиперпараметров")
-    hyperparameters = st.text_area("Гиперпараметры (в формате JSON)", '{"learning_rate": 0.01}')
+    hyperparameters = st.text_area("Гиперпараметры (в формате JSON)", '{}')
     if st.button("Обучить модель"):
         if not train_file or not test_file:
             st.error("Пожалуйста, загрузите оба файла: обучающий и тестовый.")
