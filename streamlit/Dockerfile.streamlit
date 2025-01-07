@@ -1,0 +1,16 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Установим зависимости
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем папку streamlit, содержащую наш файл Streamlit приложения
+COPY . .
+
+# Запуск скрипта для загрузки файлов
+RUN python nltk_download.py
+
+# Запускаем Streamlit
+CMD ["streamlit", "run", "streamlit_nlp.py", "--server.address", "0.0.0.0", "--server.port", "8501"]
