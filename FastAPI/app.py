@@ -5,6 +5,7 @@ import json
 import time
 import io
 import os
+import re
 import logging
 from logging.handlers import RotatingFileHandler
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
@@ -14,9 +15,9 @@ from pydantic import BaseModel
 import joblib
 import uvicorn
 import pandas as pd
-from ngram_naive_bayes import model2
-from tfidf_log_reg_standardized import model3
-from SGDClassifier import model4
+from models.ngram_naive_bayes import MNB_BoW_NB2
+from models.tfidf_log_reg_standardized import Logreg_TFIDF
+from models.SGDClassifier import SGDClassifier
 
 # Создаем необходимую директорию для логов
 os.makedirs("logs", exist_ok=True)
@@ -56,36 +57,55 @@ active_model_id = None
 
 # Структура для хранения всех моделей
 initial_models_list = {
-    'model1': {
-        'model': joblib.load('pipeline.joblib'),
-        'description': '''
-pipeline = make_pipeline(TfidfVectorizer(ngram_range=(1, 2)),
-MaxAbsScaler(),
-OneVsRestClassifier(LogisticRegression(solver='liblinear')))''',
+'Logreg_TFIDF_NB2': {
+  'model': joblib.load('models/pipeline.joblib'),
+  'description': '''
+Эта модель использует конвейер (pipeline), состоящий
+из следующих шагов:
+1. TF-IDF векторизация текста с биграммами.
+2. Масштабирование признаков с применением MaxAbsScaler.
+3. Классификация с помощью OneVsRest подхода и
+логистической регрессии (solver='liblinear').
+Точность модели (accuracy): 0.8043''',
     },
-    'model2': {
-        'model': joblib.load("ngram_naive_bayes.joblib"),
-        'description': '''ngram_naive_bayes = make_pipeline(
-CountVectorizer(ngram_range=(1, 2), max_features=500),
-MultinomialNB())''',
+'MNB_BoW_NB2': {
+  'model': joblib.load("models/ngram_naive_bayes.joblib"),
+  'description': '''
+Данная модель использует наивный байесовский классификатор. 
+Конвейер включает:
+1. Преобразование текста в числовые векторы с
+использованием CountVectorizer с биграммами
+и ограничением в 500 признаков.
+2. Классификацию с помощью MultinomialNB.
+Точность модели (accuracy): 0.7391''',
     },
-    'model3': {
-        'model': joblib.load("tfidf_log_reg_standardized.joblib"),
-        'description': '''tfidf_log_reg_standardized = make_pipeline(
-TfidfVectorizer(max_features=333),
-StandardScaler(with_mean=False),
-LogisticRegression(random_state=42, max_iter=10000, solver='lbfgs'))''',
+'Logreg_TFIDF': {
+  'model': joblib.load("models/tfidf_log_reg_standardized.joblib"),
+  'description': '''
+Эта модель построена на основе логистической регрессии
+и включает следующие шаги:
+1. Преобразование текста в TF-IDF признаки,
+ограниченное 333 признаками.
+2. Стандартизация данных с использованием
+StandardScaler (без вычитания среднего).
+3. Классификация с помощью логистической регрессии
+с установленным random_state для воспроизводимости.
+Точность модели (accuracy): 0.7826''',
     },
-    # Модель, которая поддерживает дообучение
-    'model4': {
-        'model': joblib.load("SGDClassifier.joblib"),
-        'description': '''SGDpipe = make_pipeline(
-TfidfVectorizer(max_features=700),
-StandardScaler(with_mean=False),
-SGDClassifier(max_iter=10000, tol=1e-3))''',
+'SGDClassifier': {
+  'model': joblib.load("models/SGDClassifier.joblib"),
+  'description': '''
+Эта модель поддерживает дообучение
+и включает следующие шаги в конвейере:
+1. Преобразование текста в TF-IDF признаки,
+ограниченное 700 признаками.
+2. Стандартизация данных с использованием
+StandardScaler (без вычитания среднего).
+3. Классификация с использованием SGDClassifier,
+который обучается на нескольких итерациях.
+Точность модели (accuracy): 0.6522''',
     }
 }
-
 
 # Конекстный менеджер для управления жизненным циклом приложения
 @asynccontextmanager
@@ -111,7 +131,7 @@ async def lifespan(app: FastAPI):
 
     global active_model_id
     logger.info("Начало загрузки модели...")
-    active_model_id = 'model1'
+    active_model_id = 'Logreg_TFIDF_NB2'
     get_model(active_model_id)
     logger.info("Модель загружена.")
     yield
@@ -119,7 +139,6 @@ async def lifespan(app: FastAPI):
 
 # Регистрируем lifespan для приложения
 app.router.lifespan_context = lifespan
-
 
 # Задаем различные модели запросов и ответов
 class PredictItemRequest(BaseModel):
@@ -333,11 +352,11 @@ async def predict_item_proba(request: PredictItemRequest) -> Dict[str, float]:
     mod_id = active_model_id
     model = get_model(mod_id)
 
-    if mod_id == 'model4':
-        # Выдаем сообщение об ошибке, если активна model4
+    if mod_id == 'SGDClassifier':
+        # Выдаем сообщение об ошибке, если активна SGDClassifier
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail="Модель 'model4' не может предсказывать вероятности. "
+            detail="Модель 'SGDClassifier' не может предсказывать вероятности. "
                    "Пожалуйста, выберите другую модель."
         )
 
@@ -368,11 +387,11 @@ async def predict_item_proba_file(request: UploadFile = File()) \
     mod_id = active_model_id
     model = get_model(mod_id)
 
-    if mod_id == 'model4':
-        # Выдаем сообщение об ошибке, если активна model4
+    if mod_id == 'SGDClassifier':
+        # Выдаем сообщение об ошибке, если активна SGDClassifier
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail="Модель 'model4' не может предсказывать вероятности. "
+            detail="Модель 'SGDClassifier' не может предсказывать вероятности. "
                    "Пожалуйста, выберите другую модель."
         )
 
@@ -427,11 +446,11 @@ async def predict_items_proba(request: PredictItemsRequest) \
         PredictItemsProbaResponse: Ответ с вероятностями
         для каждого текста и класса.
     """
-    if active_model_id == 'model4':
-        # Выдаем сообщение об ошибке, если активна model4
+    if active_model_id == 'SGDClassifier':
+        # Выдаем сообщение об ошибке, если активна SGDClassifier
         raise HTTPException(
             status_code=HTTPStatus.BAD_REQUEST,
-            detail="Модель 'model4' не может предсказывать вероятности. "
+            detail="Модель 'SGDClassifier' не может предсказывать вероятности. "
                    "Пожалуйста, выберите другую модель."
         )
 
@@ -466,58 +485,46 @@ async def read_parquet_file(upload_file: UploadFile):
 
 # Словарь, сопоставляющий имена моделей с функциями
 model_functions = {
-    "model2": model2,
-    "model3": model3,
-    "model4": model4
+    "MNB_BoW_NB2": MNB_BoW_NB2,
+    "Logreg_TFIDF": Logreg_TFIDF,
+    "SGDClassifier": SGDClassifier
 }
 
+# Словарь для хранения данных обученных моделей
+trained_models_info = {}
 
 # Эндпоинт для обучения активной модели
 @app.post("/train_model", response_model=TrainModelResponse)
 async def train_model(
     request: str = Form('{"hyperparameters": {}}',
-                        description="Dict of hyperparameters as JSON string"),
-    train_file: UploadFile = File(...,
-                                  description="Training dataset in pq format"),
-    test_file: UploadFile = File(...,
-                                 description="Testing dataset in pq format"),
+    description="Dict of hyperparameters as JSON string"),
+    train_file: UploadFile = File(..., description="Training dataset in pq format"),
+    test_file: UploadFile = File(..., description="Testing dataset in pq format"),
 ):
-    """
-    Обучает активную модель, используя предоставленные обучающие
-    и тестовые датасеты и заданные гиперпараметры.
-    Параметры:
-        request: JSON строка, содержащая гиперпараметры для обучения.
-        train_file: Обучающий датасет в формате parquet.
-        test_file: Тестовый датасет в формате parquet.
-    Возвращает:
-        Словарь с ID модели, временем выполнения, метриками обучения
-        и данными кривой обучения.
-    """
-
     global active_model_id
-    mod_id = active_model_id
 
     # Проверка ID модели
-    if mod_id == 'model1':
-        logger.warning("Попытка обучить model1, которую долго обучать.")
-        raise HTTPException(status_code=404,
-                            detail="""Обучение model1 занимает слишком много
-времени, пожалуйста, активируйте другую модель из списка""")
-    if mod_id not in model_functions:
-        logger.error('Модель с id "%s" не найдена для обучения.', mod_id)
+    if active_model_id == 'Logreg_TFIDF_NB2':
+        logger.warning("Попытка обучить Logreg_TFIDF_NB2, заблокировано.")
+        raise HTTPException(
+            status_code=404,
+            detail="""Обучение Logreg_TFIDF_NB2 занимает слишком много времени,
+пожалуйста, активируйте другую модель из списка"""
+        )
+    if active_model_id not in model_functions:
+        logger.error('Модель с id "%s" не найдена для обучения.',
+                     active_model_id)
         raise HTTPException(status_code=404, detail="Model not found")
 
     # Чтение данных из файлов
     train_data = await read_parquet_file(train_file)
-    # train_data = train_data[:80]
     test_data = await read_parquet_file(test_file)
-    # test_data = test_data[:3]
 
     X_train, y_train = train_data['text'], train_data['author']
     X_test, y_test = test_data['text'], test_data['author']
 
     # Получение функции обучения модели
-    train_function = model_functions.get(mod_id)
+    train_function = model_functions.get(active_model_id)
 
     try:
         request_data = json.loads(request)
@@ -539,28 +546,47 @@ async def train_model(
         )
     except Exception as e:
         logger.error('Ошибка при обучении модели: %s', e)
-        raise HTTPException(status_code=500,
-                            detail=f'Error training model: {e}') from e
+        raise HTTPException(
+            status_code=500,
+            detail=f'Error training model: {e}') from e
 
     end_time = time.perf_counter()
     execution_time = end_time - start_time
     execution_time = str(round(execution_time, 2))
     logger.info('Модель %s успешно обучена за %s секунд.',
-                mod_id, execution_time)
+                active_model_id, execution_time)
 
-    # Добавляем новую модель в словарь
-    initial_models_list['model5'] = {
+    # Генерация нового имени для модели
+    base_name = active_model_id
+    model_number = 1
+    pattern = re.compile(f"{base_name}_(\\d+)")
+
+    for key in initial_models_list.keys():
+        match = pattern.match(key)
+        if match:
+            current_number = int(match.group(1))
+            if current_number >= model_number:
+                model_number = current_number + 1
+
+    new_model_id = f"{base_name}_{model_number}"
+
+    # Добавляем новую модель в основной словарь
+    initial_models_list[new_model_id] = {
         'model': joblib.load(model_path),
         'description': 'Новая обученная модель'
     }
 
-    active_model_id = 'model5'
+    # Добавляем информацию об обученной модели в словарь
+    trained_models_info[new_model_id] = {
+        "metrics": metrics,
+        "execution_time": execution_time,
+        "learning_curve_data": learning_curve_data
+    }
 
-    print(learning_curve_data['train_scores_mean'])
-    print(learning_curve_data['test_scores_mean'])
+    active_model_id = new_model_id
 
     response = TrainModelResponse(
-        mod_id='model5',
+        mod_id=new_model_id,
         execution_time=f"{execution_time} seconds",
         accuracy=str(metrics['accuracy']),
         precision=str(metrics['precision']),
@@ -568,32 +594,47 @@ async def train_model(
         f1=str(metrics['f1']),
         train_sizes=learning_curve_data['train_sizes'],
         train_scores_mean=learning_curve_data['train_scores_mean'],
-        test_scores_mean=learning_curve_data['test_scores_mean'])
+        test_scores_mean=learning_curve_data['test_scores_mean']
+    )
 
     return response
 
 
-# Эндпоинт для дообучения модели SVG
+# Эндпоинт для сравнения экспериментов
+@app.get("/experiments", status_code=HTTPStatus.OK)
+async def get_experiments(exp_id: Union[str, None] = None) -> \
+Union[Dict, list]:
+    """Возвращает список всех обученных моделей или
+данные одной модели."""
+    if exp_id:
+        if exp_id not in trained_models_info:
+            logger.warning("Эксперимент с id '%s' не найден.", exp_id)
+            raise HTTPException(status_code=404,
+                                detail="Experiment not found")
+        logger.info("Получение данных для эксперимента с id '%s'.",
+                    exp_id)
+        return trained_models_info[exp_id]["learning_curve_data"]
+    else:
+        experiments = [{"id": model_id, "name": f"Модель {model_id}"} \
+                       for model_id in trained_models_info.keys()]
+        logger.info("Возвращается список всех обученных моделей.\
+Количество моделей: %d.", len(experiments))
+        return experiments
+
+
+# Эндпоинт для дообучения модели SGD
 @app.post("/partial_fit", response_model=Dict[str, str],
           status_code=HTTPStatus.OK)
 async def partial_fit(request_file: UploadFile = File()) -> Dict[str, str]:
     """
-    Частично дообучает модель SVG с использованием новых данных.
+    Частично дообучает модель SGD с использованием новых данных.
     Параметры:
         request_file: Файл, содержащий новые обучающие данные.
     Возвращает:
         Сообщение, подтверждающее успешное обновление модели.
     """
-    mod_id = active_model_id
-
-    if mod_id != "model4":
-        logger.error('Частичное обучение поддерживается только для model4. \
-Активируйте model4, чтобы продолжить.')
-        raise HTTPException(
-            status_code=400,
-            detail='Partial training is supported only for model4. \
-Please activate model4 to proceed.')
-
+    global active_model_id
+    mod_id = "SGDClassifier"
     pipeline = initial_models_list[mod_id]['model']
 
     # Считываем данные для обучения
@@ -608,7 +649,7 @@ Please activate model4 to proceed.')
     X_tfidf = vectorizer.transform(X_train)
 
     # Загрузка классов из файла
-    loaded_classes = joblib.load('authors.pkl')
+    loaded_classes = joblib.load('models/authors.pkl')
 
     # Обучаем модель на новых данных
     try:
@@ -621,54 +662,23 @@ Please activate model4 to proceed.')
 
     # Обновляем модель в пайплайне
     pipeline.named_steps['sgdclassifier'] = model
-    joblib.dump(pipeline, f'{mod_id}.joblib')
 
-    logger.info("Модель с id '%s' успешно дообучена с новыми данными.",
-                mod_id)
+    new_model_id = 'SGDClassifier_2'
+    joblib.dump(pipeline, f'models/{new_model_id}.joblib')
 
-    return {"message": f"Model with id '{mod_id}' \
-successfully updated with new data."}
-
-
-# Эндпоинт для fine-tuning'а активной модели
-@app.post("/fine_tuning", response_model=Dict[str, str],
-          status_code=HTTPStatus.OK)
-async def fine_tuning(request_file: UploadFile = File()) -> Dict[str, str]:
-    """
-    Выполняет fine-tuning активной модели, используя новые данные.
-    Параметры:
-        request_file: Файл, содержащий новые обучающие данные.
-    Возвращает:
-        Сообщение, подтверждающее успешное обновление всех моделей.
-    """
-    global active_model_id
-    mod_id = active_model_id
-    model = get_model(mod_id)['model']
-
-    # Считываем данные для обучения
-    train_data = await read_parquet_file(request_file)
-    # train_data = train_data[:50]
-    X_new, y_new = train_data['text'], train_data['author']
-
-    # Адаптация модели на новом наборе данных
-    try:
-        model.warm_start = True
-        model.fit(X_new, y_new)
-        joblib.dump(model, f'{mod_id}_f-t.joblib')
-        logger.info("Модель с id '%s' успешно дообучена с новыми данными.",
-                    mod_id)
-    except Exception as e:
-        logger.error('Ошибка при дообучении модели с id %s: %s', mod_id, e)
-
-    # Добавляем новую модель в словарь
-    initial_models_list['model6'] = {
-        'model': joblib.load(f'{mod_id}_f-t.joblib'),
+    # Добавляем новую модель в основной словарь
+    initial_models_list[new_model_id] = {
+        'model': joblib.load(f'models/{new_model_id}.joblib'),
         'description': 'Новая дообученная модель'
     }
 
-    active_model_id = 'model6'
+    active_model_id = new_model_id
 
-    return {"message": "All models successfully updated with new data."}
+    logger.info("Модель с id '%s' успешно дообучена с новыми данными.",
+                new_model_id)
+
+    return {"message": f"Model with id '{new_model_id}' \
+successfully updated with new data."}
 
 
 # Запуск приложения
