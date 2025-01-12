@@ -43,10 +43,10 @@ pages = ["Предсказание автора", "Информация про �
          "Обучи свою модель"]
 choice = st.sidebar.selectbox("Навигация", pages)
 
-# API_URL = 'http://127.0.0.1:8000'
+API_URL = 'http://127.0.0.1:8000'
 # Для сборки докер-образа нужно закомментировать строку выше
 # и раскомментировать строку ниже, вместо неё
-API_URL = 'http://fastapi:8000'
+# API_URL = 'http://fastapi:8000'
 
 # Путь к папке с фотографиями авторов
 IMAGES_PATH = 'images'
@@ -588,7 +588,7 @@ def handle_model_selection():
 Данные были получены при помощи парсинга текстов книг с сайтов \
 gutenberg.org и loyalbooks.com.''')
     with st.expander("Список авторов", expanded=False):
-        values_list = list(writers_dict.values())
+        values_list = sorted(writers_dict.values())
         values_text = "\n".join(values_list)
         st.text(values_text)
     with st.expander("Список доступных моделей", expanded=False):
