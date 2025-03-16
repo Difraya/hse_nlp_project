@@ -5,7 +5,7 @@ joblib==1.4.2
 uvicorn==0.32.1
 pandas==2.2.2
 numpy==1.26.0
-scikit-learn==1.5.2
+scikit-learn==1.6.1
 python-multipart==0.0.20
 pyarrow==18.1.0
 requests==2.32.3

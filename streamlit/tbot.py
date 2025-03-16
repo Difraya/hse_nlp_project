@@ -9,16 +9,17 @@ from pathlib import Path
 
 # Определяем путь к директории и файлу логов
 log_directory = 'logs'
-log_filename = 'logsfilename.log'
+log_filename = 'bot_logs.log'
 log_filepath = os.path.join(log_directory, log_filename)
 
-# Проверяем, существует ли директория, и создаем ее, если нет
+# Проверяем существует ли директория и создаем ее, если нет
 if not os.path.exists(log_directory):
     os.makedirs(log_directory)
 
 # Настраиваем логирование
 logging.basicConfig(filename=log_filepath, level=logging.DEBUG,
                     format=' %(asctime)s - %(levelname)s - %(message)s')
+
 # Определите путь к файлу модели
 current_dir = Path(__file__).resolve().parent
 model_path = current_dir.parent/'FastAPI'/'models'/'pipeline.joblib'
@@ -28,9 +29,6 @@ API_KEY = ''
 IMAGES_PATH = 'images'
 
 bot=telebot.TeleBot(API_KEY)
-
-logging.basicConfig(filename='logs/logsfilename.log', level=logging.DEBUG,
-                    format=' %(asctime)s - %(levelname)s - %(message)s')
 
 def predict_proba(model, text):
     text_series = pd.Series([text])

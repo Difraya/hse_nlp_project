@@ -13,7 +13,7 @@ subprocess.run(f"mkdir {dataset_folder}", shell=True)
 commands = [
     f"kaggle datasets download vorvit/books-eng --file train.pq --force --path {dataset_folder}",
     f"kaggle datasets download vorvit/books-eng --file test.pq --force --path {dataset_folder}",
-    f"kaggle datasets download vorvit/books-eng --file pipeline.joblib --force --path {models_folder}",
+    # f"kaggle datasets download vorvit/books-eng --file pipeline.joblib --force --path {models_folder}",
 ]
 
 # Функция, которая выполняет команду и выводит результат
