@@ -65,9 +65,9 @@ initial_models_list = {
 1. TF-IDF векторизация текста с биграммами и 
 ограничением в 10000 признаков.
 2. Масштабирование признаков с применением MaxAbsScaler.
-3. Классификация с помощью OneVsRest подхода и
-логистической регрессии (solver='liblinear').
-Точность модели (accuracy): 0.8043''',
+3. Классификация с помощью OneVsRest подхода и логистической
+регрессии (solver='liblinear', class_weight='balanced').
+Точность модели (accuracy): 0.9394''',
     },
 'MNB_BoW_NB2': {
   'model': joblib.load("models/ngram_naive_bayes.joblib"),
