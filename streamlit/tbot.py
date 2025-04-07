@@ -25,7 +25,7 @@ current_dir = Path(__file__).resolve().parent
 model_path = current_dir.parent/'FastAPI'/'models'/'pipeline.joblib'
 
 # AuthorPredictorBot
-API_KEY = '7563764834:AAHozJE9PMt51xSWVEaoKULkQ9h6B4ayfrg'
+API_KEY = ''
 IMAGES_PATH = 'images'
 
 bot = telebot.TeleBot(API_KEY)
