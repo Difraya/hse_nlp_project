@@ -25,14 +25,15 @@ current_dir = Path(__file__).resolve().parent
 model_path = current_dir.parent/'FastAPI'/'models'/'pipeline.joblib'
 
 # AuthorPredictorBot
-API_KEY = ''
+API_KEY = '7563764834:AAHozJE9PMt51xSWVEaoKULkQ9h6B4ayfrg'
 IMAGES_PATH = 'images'
 
-bot=telebot.TeleBot(API_KEY)
+bot = telebot.TeleBot(API_KEY)
+
+model = joblib.load(model_path)
 
 def predict_proba(model, text):
     text_series = pd.Series([text])
-
     return model.predict_proba(text_series)[0]
 
 
@@ -69,7 +70,6 @@ def start_message(message):
 @bot.message_handler(content_types=['text'])
 def send_text(message):
     text = message.text
-    model = joblib.load(model_path)
     try:
         probabilities = predict_proba(model, text)
         author_probas = dict(zip(model.classes_, probabilities))
@@ -81,8 +81,12 @@ def send_text(message):
         for author, prob in first_three_pairs.items():
             if first_author:
                 # Загрузка и отправка изображения первого автора
-                image = Image.open(get_author_image(author))
-                bot.send_photo(message.chat.id, photo=image)
+                image_data = get_author_image(author)
+                if image_data is not None:
+                    image = Image.open(image_data)
+                    bot.send_photo(message.chat.id, photo=image)
+                else:
+                    print("Image data is None")
                 # Отправка имени автора и вероятности
                 bot.send_message(message.chat.id, f"Автором данного текста является:\n{get_writer_name_ru(author)},\nс вероятностью: {prob * 100:.2f}%")
                 bot.send_message(message.chat.id, 'Ближайшие по стилю авторы:')
