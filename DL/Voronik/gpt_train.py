@@ -53,13 +53,17 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 logger.info(f"Используемое устройство: {device}")
 
 # 1. Загрузка и предобработка данных
-df = pd.read_parquet('books2.pq')
+df = pd.read_parquet('limited.pq')
+
+# Оставить случайные строк на каждого автора
+df = df.groupby('author', group_keys=False).sample(n=33, random_state=42).reset_index(drop=True)
+
 df['processed_text'] = df.apply(lambda x: f"[AUTHOR_{x['author']}] {x['text']}", axis=1)
 
 # Разделение данных на train/validation
 train_texts, val_texts = train_test_split(
     df['processed_text'].tolist(),
-    test_size=0.1,
+    test_size=0.1, 
     random_state=42
 )
 
@@ -110,7 +114,7 @@ training_args = TrainingArguments(
     num_train_epochs=10,
     per_device_train_batch_size=1,
     per_device_eval_batch_size=1,
-    gradient_accumulation_steps=8,
+    gradient_accumulation_steps=16,
     learning_rate=2e-5,
     logging_dir='./logs',
     logging_steps=10,
@@ -163,7 +167,7 @@ tokenizer.save_pretrained('./author_style_gpt2')
 def generate_text(author, prompt, max_length=100):
     if author not in authors:
         raise ValueError(f"Автор {author} не найден. Доступные: {', '.join(authors)}")
-
+    
     model = GPTNeoForCausalLM.from_pretrained('./author_style_gpt2').to(device)
     tokenizer = AutoTokenizer.from_pretrained('./author_style_gpt2')
 
@@ -186,5 +190,4 @@ def generate_text(author, prompt, max_length=100):
     return clean_text
 
 # Пример использования
-# print("Доступные авторы:", authors)
 print(generate_text('Fyodor_Dostoyevsky', 'The meaning of life is'))
