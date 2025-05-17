@@ -27,7 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Добавляем вывод в консоль
+# Вывод в консоль
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter(
@@ -48,7 +48,11 @@ API_KEYS = {
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / 'FastAPI' / 'models' / 'pipeline.joblib'
 IMAGES_PATH = Path('images')
-GPT_MODEL_PATH = "C:/_1/2/author_style_gpt2"
+GPT_MODEL_PATH = "C:/_1/2/author_style_gpt2"  # "E:/__/_1/1/gpt250"
+GPT_TOK_PATH = "E:/__/_1/1/cus_tok"
+AUTHORS_DF = pd.read_parquet('limited.pq')
+UNIQUE_AUTHORS = AUTHORS_DF['author'].unique().tolist()
+WRITERS_DICT = {author: author for author in UNIQUE_AUTHORS}
 
 # Инициализация объектов
 bot = Bot(token=API_KEYS['TELEGRAM'])
@@ -72,7 +76,7 @@ class Form(StatesGroup):
     waiting_for_image_text = State()
     processing = State()
 
-# Обновленная клавиатура
+# Клавиатура
 FUNCTION_KEYBOARD = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Предсказание авторства")],
@@ -140,12 +144,17 @@ async def load_author_images():
                 author_image_cache[author] = f.read()
 
 
-def sanitize_prompt(prompt):
-    """Очистка и ограничение промпта"""
-    prompt = prompt.replace("[AUTHOR_", "").replace("]", "")
-    prompt = prompt[:200].strip()
-    prompt = prompt.replace("{", "").replace("}", "")
-    return prompt
+def sanitize_prompt(prompt: str) -> str:
+    """Очищает промпт для использования в API"""
+    return (
+        prompt.replace("\n", " ")
+        .replace("[AUTHOR_", "")
+        .replace("]", "")
+        .replace("\\", "")
+        .replace("{", "")
+        .replace("}", "")
+        .strip()[:200]
+    )
 
 
 async def predict_authors(text):
@@ -155,38 +164,38 @@ async def predict_authors(text):
     return dict(zip(model.classes_, probas))
 
 
-async def generate_text(author, prompt, max_length=150, temperature=0.7):
+async def generate_text(author, prompt, max_new_tokens=150):
+    """Генерация текста в стиле автора"""
     input_text = f"[AUTHOR_{author}] {prompt}"
+    
+    # Токенизация
     encoded_inputs = gpt_tokenizer(
         input_text,
         return_tensors='pt',
         padding=True,
         truncation=True
     ).to(device)
-
+    
     input_ids = encoded_inputs['input_ids']
-    attention_mask = encoded_inputs.get('attention_mask', None)
-
-    gpt_tokenizer.pad_token_id = gpt_tokenizer.eos_token_id + 1
-
+    attention_mask = encoded_inputs['attention_mask']
+    
+    # Генерация
     outputs = gpt_model.generate(
-        input_ids,
+        input_ids=input_ids,
         attention_mask=attention_mask,
-        max_length=max_length,
-        temperature=temperature,
+        max_new_tokens=max_new_tokens,
+        temperature=0.7,
         top_k=50,
         top_p=0.92,
         repetition_penalty=1.2,
+        pad_token_id=gpt_tokenizer.eos_token_id,
         num_return_sequences=1,
-        pad_token_id=gpt_tokenizer.pad_token_id,
-        bos_token_id=gpt_tokenizer.bos_token_id,
-        eos_token_id=gpt_tokenizer.eos_token_id,
         do_sample=True
     )
-
+    
+    # Декодирование
     generated_text = gpt_tokenizer.decode(outputs[0], skip_special_tokens=False)
-    clean_text = generated_text.replace(f'[AUTHOR_{author}]', '').strip()
-    return clean_text
+    return generated_text.replace(f'[AUTHOR_{author}]', '').strip()
 
 
 async def process_message(message: types.Message, fb_api: AsyncFusionBrainAPI, generate_image: bool = False, run_prediction: bool = True):
@@ -256,18 +265,6 @@ async def process_message(message: types.Message, fb_api: AsyncFusionBrainAPI, g
         active_users.discard(message.from_user.id)
 
 
-# Добавляем функцию очистки промпта
-def sanitize_prompt(prompt: str) -> str:
-    """Очищает промпт для использования в API"""
-    return (
-        prompt.replace("\n", " ")
-        .replace("\\", "")
-        .replace("{", "")
-        .replace("}", "")
-        .strip()[:200]
-    )
-
-
 @router.message(Command('start'))
 async def start_command(message: types.Message, state: FSMContext):
     await state.set_state(Form.choosing_function)
@@ -332,8 +329,8 @@ async def generation_selected(message: types.Message, state: FSMContext):
     await state.set_state(Form.waiting_for_author)
 
     builder = ReplyKeyboardBuilder()
-    for author in writers_dict.values():
-        builder.add(KeyboardButton(text=author))
+    for author in WRITERS_DICT.values():
+        builder.add(KeyboardButton(text=writers_dict.get(author, "Неизвестный автор")))
 
     builder.adjust(2)
 
@@ -365,6 +362,7 @@ async def image_generation_selected(message: types.Message, state: FSMContext):
         return
     await state.set_state(Form.waiting_for_image_text)
     await message.reply("Отправьте текст для генерации изображения")
+
 
 # Обработчик для генерации изображения по тексту
 @router.message(Form.waiting_for_image_text)
@@ -452,20 +450,19 @@ async def handle_prediction_text(message: types.Message, state: FSMContext):
 
 @router.message(Form.waiting_for_author)
 async def handle_author_selection(message: types.Message, state: FSMContext):
-    try:
-        selected_author = next(key for key, value in writers_dict.items() if value == message.text)
-        await state.update_data(selected_author=selected_author)
-        await state.set_state(Form.waiting_for_text)
-        await message.reply(
-            "Введите текст для продолжения в стиле выбранного автора",
-            reply_markup=ReplyKeyboardRemove()
-        )
-    except StopIteration:
+    selected_author = None
+    for eng, rus in writers_dict.items():
+        if rus == message.text:
+            selected_author = eng
+            break
+    if not selected_author:
         logger.error(f"Автор {message.text} не найден")
-        await message.reply(
-            "Неизвестный автор. Пожалуйста, выберите из списка:",
-            reply_markup=Keyboards.authors_menu()
-        )
+        await message.reply("Неизвестный автор. Пожалуйста, выберите из списка:")
+        return
+    await state.update_data(selected_author=selected_author)
+    await state.set_state(Form.waiting_for_text)
+    await message.reply("Введите текст для продолжения в стиле выбранного автора", reply_markup=ReplyKeyboardRemove())
+
 
 # Обработчик генерации текста
 @router.message(Form.waiting_for_text)
@@ -527,12 +524,10 @@ async def handle_text_generation(message: types.Message, state: FSMContext):
         )
         active_users.discard(message.from_user.id)
 
-
 async def main():
     await load_author_images()
     dp.include_router(router)
     await dp.start_polling(bot)
-
 
 if __name__ == '__main__':
     asyncio.run(main())
