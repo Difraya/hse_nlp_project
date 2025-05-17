@@ -28,6 +28,8 @@ pip install -r requirements.txt
 - **Колонки**:  
   - `author` — имя автора (например, `Fyodor_Dostoyevsky`).  
   - `text` — текст произведения.  
+Для обучения модели использован специально подготовленный датасет limited.pq в котором отобраны 33 автора из 100, а все тексты книг разбиты на фрагменты по 512 токенов, для каждого автора датасет содержит по 150 случайно выбранных таких фрагментов. Для обучения выбирается 33 случайных фрагмента для каждого автора.
+
 
 ### Этапы обработки  
 1. **Добавление специальных токенов**:  
@@ -61,7 +63,6 @@ pip install -r requirements.txt
 | Валидация               | Каждые 50 шагов   |
 
 ### Логирование  
-- Логи сохраняются в директорию `./logs`.  
 - Используются кастомные callback-функции для отслеживания loss и learning rate.
 
 ---
@@ -72,7 +73,7 @@ generate_text('Fyodor_Dostoyevsky', 'The meaning of life is')
 ```
 **Результат**:  
 ```
-[AUTHOR_Fyodor_Dostoyevsky] The meaning of life is... a mystery that haunts every soul, 
+[AUTHOR_Fyodor_Dostoyevsky] The meaning of life is a mystery that haunts every soul, 
 a burden that crushes the weak, yet elevates the strong. In the depths of despair,
 I found the truth: suffering is the only reality that binds us all.
 ```
@@ -85,6 +86,15 @@ I found the truth: suffering is the only reality that binds us all.
 - `temperature=0.7` — контролирует случайность генерации.  
 - `top_k=50`, `top_p=0.92` — фильтруют нерелевантные токены.  
 - `repetition_penalty=1.2` — снижает повторения.
+
+---
+
+## Оценка качества генерации текстов в стиле авторов
+
+### Описание  
+Этот проект реализует оценку качества генерации текстов в стиле автора с использованием метрик **BERTScore** и **Perplexity**.  
+- **BERTScore**: измеряет семантическую близость сгенерированного текста к эталонному.  
+- **Perplexity**: оценивает уверенность модели в предсказаниях (чем ниже значение, тем лучше).
 
 ---
 
