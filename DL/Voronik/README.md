@@ -118,4 +118,4 @@ tokenizer = GPT2Tokenizer.from_pretrained('./author_style_gpt2')
 В [файле ChatExport_2025-05-17.rar](https://github.com/Difraya/hse_nlp_project/blob/main/DL/Voronik/ChatExport_2025-05-17.rar) содержится пример работы бота.
 
 ### Дообученная модлеь
-Обученную модель gpt2-large можно скачать по [ссылке: ](https://disk.yandex.ru/d/Wy7YUOsFj4ikBg).
+Обученную модель gpt2-large можно скачать по [ссылке](https://disk.yandex.ru/d/Wy7YUOsFj4ikBg).
