@@ -114,3 +114,8 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 model = GPT2LMHeadModel.from_pretrained('./author_style_gpt2').to(device)
 tokenizer = GPT2Tokenizer.from_pretrained('./author_style_gpt2')
 ```
+### Пример работы бота
+В файле ChatExport_2025-05-17.rar содержится пример работы бота.
+
+### Дообученная модлеь
+Обученную модель gpt2-large можно скачать по ссылке: .
