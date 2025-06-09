@@ -42,10 +42,10 @@ logger.addHandler(console_handler)
 # Конфигурация
 API_KEYS = {
     'FUSION_BRAIN': {
-        'API_KEY': 'CE5724FC57BC0BEE5421AEBEAB418E40',
-        'SECRET_KEY': '93798A3536DE9355BE4C242EA715A0AF'
+        'API_KEY': '',
+        'SECRET_KEY': ''
     },
-    'TELEGRAM': '7563764834:AAHS0nX8CDH5_I5XA0IIAUmjQk_mU03MacA'
+    'TELEGRAM': ''
 }
 
 MODEL_PATH = Path(__file__).resolve().parent.parent / 'FastAPI' / 'models' / 'pipeline.joblib'
